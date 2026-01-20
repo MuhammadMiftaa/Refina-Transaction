@@ -1,0 +1,23 @@
+FROM golang:1.24.4-alpine AS builder
+
+WORKDIR /app
+RUN apk add --no-cache git ca-certificates
+
+RUN git clone https://github.com/pressly/goose.git
+
+WORKDIR /app/goose
+RUN go mod tidy
+RUN go build -tags='no_clickhouse no_libsql no_mssql no_mysql no_sqlite3 no_vertica no_ydb' -o goose ./cmd/goose
+
+FROM alpine:latest
+RUN apk add --no-cache postgresql-client ca-certificates
+
+WORKDIR /app
+COPY --from=builder /app/goose/goose /usr/local/bin/goose
+COPY config/db/migrations/ ./migrations/
+COPY config/db/seeder ./seeder/
+
+COPY migrate.sh ./migrate.sh
+RUN chmod +x migrate.sh
+
+CMD ["./migrate.sh"]

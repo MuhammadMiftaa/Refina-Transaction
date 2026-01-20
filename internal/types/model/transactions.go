@@ -14,6 +14,5 @@ type Transactions struct {
 	TransactionDate time.Time `gorm:"type:timestamp;not null"`
 	Description     string    `gorm:"type:text"`
 
-	Wallet   Wallets    `gorm:"foreignKey:WalletID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	Category Categories `gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 }

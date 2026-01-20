@@ -21,6 +21,10 @@ type (
 		Port string `env:"CLIENT_PORT"`
 	}
 
+	WalletService struct {
+		BaseURL string `env:"WALLET_SERVICE_URL"`
+	}
+
 	Database struct {
 		DBHost     string `env:"DB_HOST"`
 		DBPort     string `env:"DB_PORT"`
@@ -38,10 +42,11 @@ type (
 	}
 
 	Config struct {
-		Server   Server
-		Client   Client
-		Database Database
-		Minio    Minio
+		Server        Server
+		Client        Client
+		WalletService WalletService
+		Database      Database
+		Minio         Minio
 	}
 )
 
@@ -75,6 +80,12 @@ func LoadNative() ([]string, error) {
 	}
 	if Cfg.Client.Port, ok = os.LookupEnv("CLIENT_PORT"); !ok {
 		missing = append(missing, "CLIENT_PORT env is not set")
+	}
+	// ! ______________________________________________________
+
+	// ! Load Wallet Service configuration ___________________
+	if Cfg.WalletService.BaseURL, ok = os.LookupEnv("WALLET_SERVICE_URL"); !ok {
+		missing = append(missing, "WALLET_SERVICE_URL env is not set")
 	}
 	// ! ______________________________________________________
 
@@ -162,6 +173,12 @@ func LoadByViper() ([]string, error) {
 	}
 	// ! ______________________________________________________
 
+	// ! Load Wallet Service configuration ___________________
+	if Cfg.WalletService.BaseURL = config.GetString("WALLET_SERVICE.URL"); Cfg.WalletService.BaseURL == "" {
+		missing = append(missing, "WALLET_SERVICE.URL env is not set")
+	}
+	// ! ______________________________________________________
+
 	// ! Load Database configuration __________________________
 	if Cfg.Database.DBUser = config.GetString("DATABASE.POSTGRESQL.USER"); Cfg.Database.DBUser == "" {
 		missing = append(missing, "DATABASE.POSTGRESQL.USER env is not set")
@@ -196,7 +213,7 @@ func LoadByViper() ([]string, error) {
 	if Cfg.Minio.UseSSL = config.GetInt("OBJECT-STORAGE.MINIO.USE_SSL"); Cfg.Minio.UseSSL < 0 || Cfg.Minio.UseSSL > 1 {
 		missing = append(missing, "OBJECT-STORAGE.MINIO.USE_SSL env is not valid")
 	}
-	
+
 	// ! ______________________________________________________
 
 	return missing, nil

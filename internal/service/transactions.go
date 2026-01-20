@@ -7,91 +7,95 @@ import (
 
 	"refina-transaction/config/log"
 	"refina-transaction/config/miniofs"
+	external "refina-transaction/external/service"
 	"refina-transaction/internal/repository"
 	"refina-transaction/internal/types/dto"
 	"refina-transaction/internal/types/model"
-	"refina-transaction/internal/types/view"
 	helper "refina-transaction/internal/utils"
 
 	"github.com/google/uuid"
 )
 
 type TransactionsService interface {
-	GetAllTransactions(ctx context.Context) ([]view.ViewUserTransactions, error)
-	GetTransactionByID(ctx context.Context, id string) (view.ViewUserTransactions, error)
-	GetTransactionsByUserID(ctx context.Context, token string) ([]view.ViewUserTransactions, error)
+	GetAllTransactions(ctx context.Context) ([]dto.TransactionsResponse, error)
+	GetTransactionByID(ctx context.Context, id string) (dto.TransactionsResponse, error)
+	GetTransactionsByUserID(ctx context.Context, token string) ([]dto.TransactionsResponse, error)
 	CreateTransaction(ctx context.Context, transaction dto.TransactionsRequest) (dto.TransactionsResponse, error)
 	FundTransfer(ctx context.Context, transaction dto.FundTransferRequest) (dto.FundTransferResponse, error)
 	UploadAttachment(ctx context.Context, transactionID string, files []string) ([]dto.AttachmentsResponse, error)
 	UpdateTransaction(ctx context.Context, id string, transaction dto.TransactionsRequest) (dto.TransactionsResponse, error)
 	DeleteTransaction(ctx context.Context, id string) (dto.TransactionsResponse, error)
-	GetUserSummary(ctx context.Context, token string, isDetail bool) ([]view.MVUserSummaries, error)
-	GetUserMonthlySummary(ctx context.Context, token string, isDetail bool) ([]view.MVUserMonthlySummaries, error)
-	GetUserMostExpenses(ctx context.Context, token string, isDetail bool) ([]view.MVUserMostExpenses, error)
-	GetUserWalletDailySummary(ctx context.Context, token string, isDetail bool) ([]view.MVUserWalletDailySummaries, error)
 }
 
 type transactionsService struct {
 	txManager       repository.TxManager
 	transactionRepo repository.TransactionsRepository
-	walletRepo      repository.WalletsRepository
 	categoryRepo    repository.CategoriesRepository
 	attachmentRepo  repository.AttachmentsRepository
 	minio           *miniofs.MinIOManager
+	walletClient    *external.WalletClient
 }
 
-func NewTransactionService(txManager repository.TxManager, transactionRepo repository.TransactionsRepository, walletRepo repository.WalletsRepository, categoryRepo repository.CategoriesRepository, attachmentRepo repository.AttachmentsRepository, minio *miniofs.MinIOManager) TransactionsService {
+func NewTransactionService(txManager repository.TxManager, transactionRepo repository.TransactionsRepository, walletRepo *external.WalletClient, categoryRepo repository.CategoriesRepository, attachmentRepo repository.AttachmentsRepository, minio *miniofs.MinIOManager) TransactionsService {
 	return &transactionsService{
 		txManager:       txManager,
 		transactionRepo: transactionRepo,
-		walletRepo:      walletRepo,
 		categoryRepo:    categoryRepo,
 		attachmentRepo:  attachmentRepo,
 		minio:           minio,
+		walletClient:    walletRepo,
 	}
 }
 
-func (transaction_serv *transactionsService) GetAllTransactions(ctx context.Context) ([]view.ViewUserTransactions, error) {
+func (transaction_serv *transactionsService) GetAllTransactions(ctx context.Context) ([]dto.TransactionsResponse, error) {
 	transactions, err := transaction_serv.transactionRepo.GetAllTransactions(ctx, nil)
 	if err != nil {
 		return nil, errors.New("failed to get transactions")
 	}
 
-	return transactions, nil
-}
-
-func (transaction_serv *transactionsService) GetTransactionByID(ctx context.Context, id string) (view.ViewUserTransactions, error) {
-	transaction, err := transaction_serv.transactionRepo.GetTransactionByIDJoin(ctx, nil, id)
-	if err != nil {
-		return view.ViewUserTransactions{}, errors.New("transaction not found")
+	transactionResponses := make([]dto.TransactionsResponse, 0, len(transactions))
+	for _, transaction := range transactions {
+		transactionResponse := helper.ConvertToResponseType(transaction).(dto.TransactionsResponse)
+		transactionResponses = append(transactionResponses, transactionResponse)
 	}
 
-	attachments, err := transaction_serv.attachmentRepo.GetAttachmentsByTransactionID(ctx, nil, transaction.ID)
+	return transactionResponses, nil
+}
+
+func (transaction_serv *transactionsService) GetTransactionByID(ctx context.Context, id string) (dto.TransactionsResponse, error) {
+	transaction, err := transaction_serv.transactionRepo.GetTransactionByID(ctx, nil, id)
 	if err != nil {
-		return view.ViewUserTransactions{}, errors.New("failed to get attachments")
+		return dto.TransactionsResponse{}, errors.New("transaction not found")
+	}
+
+	transactionResponse := helper.ConvertToResponseType(transaction).(dto.TransactionsResponse)
+
+	attachments, err := transaction_serv.attachmentRepo.GetAttachmentsByTransactionID(ctx, nil, transaction.ID.String())
+	if err != nil {
+		return dto.TransactionsResponse{}, errors.New("failed to get attachments")
 	}
 
 	if len(attachments) > 0 {
 		for _, attachment := range attachments {
 			if attachment.Image != "" {
-				result := view.Attachment{
+				result := dto.AttachmentsResponse{
 					ID:            attachment.ID.String(),
 					TransactionID: attachment.TransactionID.String(),
 					Image:         attachment.Image,
 					Format:        attachment.Format,
 					Size:          attachment.Size,
 				}
-				transaction.Attachments = append(transaction.Attachments, result)
+				transactionResponse.Attachments = append(transactionResponse.Attachments, result)
 			}
 		}
 	} else {
-		transaction.Attachments = make([]view.Attachment, 0, len(attachments))
+		transactionResponse.Attachments = make([]dto.AttachmentsResponse, 0, len(attachments))
 	}
 
-	return transaction, nil
+	return transactionResponse, nil
 }
 
-func (transaction_serv *transactionsService) GetTransactionsByUserID(ctx context.Context, token string) ([]view.ViewUserTransactions, error) {
+func (transaction_serv *transactionsService) GetTransactionsByUserID(ctx context.Context, token string) ([]dto.TransactionsResponse, error) {
 	userData, err := helper.VerifyToken(token[7:])
 	if err != nil {
 		return nil, errors.New("invalid token")
@@ -102,7 +106,13 @@ func (transaction_serv *transactionsService) GetTransactionsByUserID(ctx context
 		return nil, errors.New("failed to get transactions")
 	}
 
-	return transactions, nil
+	transactionResponses := make([]dto.TransactionsResponse, 0, len(transactions))
+	for _, transaction := range transactions {
+		transactionResponse := helper.ConvertToResponseType(transaction).(dto.TransactionsResponse)
+		transactionResponses = append(transactionResponses, transactionResponse)
+	}
+
+	return transactionResponses, nil
 }
 
 func (transaction_serv *transactionsService) CreateTransaction(ctx context.Context, transaction dto.TransactionsRequest) (dto.TransactionsResponse, error) {
@@ -119,7 +129,7 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 	}()
 
 	// Check if wallet and category exist
-	wallet, err := transaction_serv.walletRepo.GetWalletByID(ctx, tx, transaction.WalletID)
+	wallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transaction.WalletID)
 	if err != nil {
 		return dto.TransactionsResponse{}, errors.New("wallet not found")
 	}
@@ -151,7 +161,7 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 	}
 
 	// Update wallet balance
-	_, err = transaction_serv.walletRepo.UpdateWallet(ctx, tx, wallet)
+	_, err = transaction_serv.walletClient.UpdateWallet(ctx, wallet.ID, wallet)
 	if err != nil {
 		return dto.TransactionsResponse{}, errors.New("failed to update wallet")
 	}
@@ -206,12 +216,12 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 	}()
 
 	// Check if wallet and category exist
-	fromWallet, err := transaction_serv.walletRepo.GetWalletByID(ctx, tx, transaction.FromWalletID)
+	fromWallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transaction.FromWalletID)
 	if err != nil {
 		return dto.FundTransferResponse{}, errors.New("source wallet not found")
 	}
 
-	toWallet, err := transaction_serv.walletRepo.GetWalletByID(ctx, tx, transaction.ToWalletID)
+	toWallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transaction.ToWalletID)
 	if err != nil {
 		return dto.FundTransferResponse{}, errors.New("destination wallet not found")
 	}
@@ -246,10 +256,10 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 	}
 
 	// Update wallet balance
-	if _, err = transaction_serv.walletRepo.UpdateWallet(ctx, tx, fromWallet); err != nil {
+	if _, err = transaction_serv.walletClient.UpdateWallet(ctx, fromWallet.ID, fromWallet); err != nil {
 		return dto.FundTransferResponse{}, errors.New("failed to update from wallet")
 	}
-	if _, err = transaction_serv.walletRepo.UpdateWallet(ctx, tx, toWallet); err != nil {
+	if _, err = transaction_serv.walletClient.UpdateWallet(ctx, toWallet.ID, toWallet); err != nil {
 		return dto.FundTransferResponse{}, errors.New("failed to update to wallet")
 	}
 
@@ -394,7 +404,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 	// ? If wallet ID is different, update wallet balance
 	if transaction.WalletID != transactionExist.WalletID.String() {
 		// *  Check if wallet exist
-		oldWallet, err := transaction_serv.walletRepo.GetWalletByID(ctx, tx, transactionExist.WalletID.String())
+		oldWallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transactionExist.WalletID.String())
 		if err != nil {
 			return dto.TransactionsResponse{}, errors.New("wallet not found")
 		}
@@ -409,12 +419,12 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 			return dto.TransactionsResponse{}, errors.New("invalid transaction type")
 		}
 
-		if _, err = transaction_serv.walletRepo.UpdateWallet(ctx, tx, oldWallet); err != nil {
+		if _, err = transaction_serv.walletClient.UpdateWallet(ctx, oldWallet.ID, oldWallet); err != nil {
 			return dto.TransactionsResponse{}, errors.New("failed to update wallet")
 		}
 
 		// *  Check if new wallet exist
-		newWallet, err := transaction_serv.walletRepo.GetWalletByID(ctx, tx, transaction.WalletID)
+		newWallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transaction.WalletID)
 		if err != nil {
 			return dto.TransactionsResponse{}, errors.New("new wallet not found")
 		}
@@ -429,7 +439,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 			return dto.TransactionsResponse{}, errors.New("invalid transaction type")
 		}
 
-		if _, err = transaction_serv.walletRepo.UpdateWallet(ctx, tx, newWallet); err != nil {
+		if _, err = transaction_serv.walletClient.UpdateWallet(ctx, newWallet.ID, newWallet); err != nil {
 			return dto.TransactionsResponse{}, errors.New("failed to update new wallet")
 		}
 
@@ -444,7 +454,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 	// ? Update transaction fields
 	if transaction.Amount != transactionExist.Amount {
 		// *  Update wallet balance
-		oldWallet, err := transaction_serv.walletRepo.GetWalletByID(ctx, tx, transactionExist.WalletID.String())
+		oldWallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transactionExist.WalletID.String())
 		if err != nil {
 			return dto.TransactionsResponse{}, errors.New("wallet not found")
 		}
@@ -461,7 +471,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 			return dto.TransactionsResponse{}, errors.New("invalid transaction type")
 		}
 
-		if _, err = transaction_serv.walletRepo.UpdateWallet(ctx, tx, oldWallet); err != nil {
+		if _, err = transaction_serv.walletClient.UpdateWallet(ctx, oldWallet.ID, oldWallet); err != nil {
 			return dto.TransactionsResponse{}, errors.New("failed to update wallet")
 		}
 
@@ -557,23 +567,29 @@ func (transaction_serv *transactionsService) DeleteTransaction(ctx context.Conte
 		return dto.TransactionsResponse{}, errors.New("transaction not found")
 	}
 
+	// Get wallet to update balance
+	wallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transactionExist.WalletID.String())
+	if err != nil {
+		return dto.TransactionsResponse{}, errors.New("wallet not found")
+	}
+
 	// Update wallet balance
 	if transactionExist.Category.Type == "expense" {
-		transactionExist.Wallet.Balance += transactionExist.Amount
+		wallet.Balance += transactionExist.Amount
 	} else if transactionExist.Category.Type == "income" {
-		transactionExist.Wallet.Balance -= transactionExist.Amount
+		wallet.Balance -= transactionExist.Amount
 	} else {
 		if transactionExist.Category.Name == "Cash Out" {
-			transactionExist.Wallet.Balance += transactionExist.Amount
+			wallet.Balance += transactionExist.Amount
 		} else if transactionExist.Category.Name == "Cash In" {
-			transactionExist.Wallet.Balance -= transactionExist.Amount
+			wallet.Balance -= transactionExist.Amount
 		} else {
 			return dto.TransactionsResponse{}, errors.New("invalid transaction type")
 		}
 	}
 
 	// Update wallet balance
-	_, err = transaction_serv.walletRepo.UpdateWallet(ctx, tx, transactionExist.Wallet)
+	_, err = transaction_serv.walletClient.UpdateWallet(ctx, wallet.ID, wallet)
 	if err != nil {
 		return dto.TransactionsResponse{}, errors.New("failed to update wallet")
 	}
@@ -592,84 +608,4 @@ func (transaction_serv *transactionsService) DeleteTransaction(ctx context.Conte
 	transactionResponse := helper.ConvertToResponseType(transactionDeleted).(dto.TransactionsResponse)
 
 	return transactionResponse, nil
-}
-
-func (transaction_serv *transactionsService) GetUserSummary(ctx context.Context, token string, isDetail bool) ([]view.MVUserSummaries, error) {
-	userData, err := helper.VerifyToken(token[7:])
-	if err != nil {
-		return nil, errors.New("invalid token")
-	}
-
-	var summary []view.MVUserSummaries
-
-	if !isDetail {
-		summary, err = transaction_serv.transactionRepo.GetUserSummary(ctx, nil, nil)
-	} else {
-		summary, err = transaction_serv.transactionRepo.GetUserSummary(ctx, nil, &userData.ID)
-	}
-	if err != nil {
-		return nil, errors.New("failed to get user summary")
-	}
-
-	return summary, nil
-}
-
-func (transaction_serv *transactionsService) GetUserMonthlySummary(ctx context.Context, token string, isDetail bool) ([]view.MVUserMonthlySummaries, error) {
-	userData, err := helper.VerifyToken(token[7:])
-	if err != nil {
-		return nil, errors.New("invalid token")
-	}
-
-	var summary []view.MVUserMonthlySummaries
-
-	if !isDetail {
-		summary, err = transaction_serv.transactionRepo.GetUserMonthlySummary(ctx, nil, nil)
-	} else {
-		summary, err = transaction_serv.transactionRepo.GetUserMonthlySummary(ctx, nil, &userData.ID)
-	}
-	if err != nil {
-		return nil, errors.New("failed to get user monthly summary")
-	}
-
-	return summary, nil
-}
-
-func (transaction_serv *transactionsService) GetUserMostExpenses(ctx context.Context, token string, isDetail bool) ([]view.MVUserMostExpenses, error) {
-	userData, err := helper.VerifyToken(token[7:])
-	if err != nil {
-		return nil, errors.New("invalid token")
-	}
-
-	var expenses []view.MVUserMostExpenses
-
-	if !isDetail {
-		expenses, err = transaction_serv.transactionRepo.GetUserMostExpenses(ctx, nil, nil)
-	} else {
-		expenses, err = transaction_serv.transactionRepo.GetUserMostExpenses(ctx, nil, &userData.ID)
-	}
-	if err != nil {
-		return nil, errors.New("failed to get user most expenses")
-	}
-
-	return expenses, nil
-}
-
-func (transaction_serv *transactionsService) GetUserWalletDailySummary(ctx context.Context, token string, isDetail bool) ([]view.MVUserWalletDailySummaries, error) {
-	userData, err := helper.VerifyToken(token[7:])
-	if err != nil {
-		return nil, errors.New("invalid token")
-	}
-
-	var summary []view.MVUserWalletDailySummaries
-
-	if !isDetail {
-		summary, err = transaction_serv.transactionRepo.GetUserWalletDailySummary(ctx, nil, nil)
-	} else {
-		summary, err = transaction_serv.transactionRepo.GetUserWalletDailySummary(ctx, nil, &userData.ID)
-	}
-	if err != nil {
-		return nil, errors.New("failed to get user wallet daily summary")
-	}
-
-	return summary, nil
 }

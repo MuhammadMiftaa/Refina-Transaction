@@ -17,6 +17,8 @@ type TransactionsResponse struct {
 	TransactionDate time.Time `json:"transaction_date"`
 	Description     string    `json:"description"`
 	Image           string    `json:"image"`
+
+	Attachments []AttachmentsResponse `json:"attachments"`
 }
 
 type UpdateAttachmentsRequest struct {

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 
 	"refina-transaction/internal/types/model"
 	"refina-transaction/internal/types/view"
@@ -82,9 +81,6 @@ func (category_repo *categoryRepository) GetCategoriesByType(ctx context.Context
 		Category  []byte
 	}
 	err = db.Raw(`SELECT * FROM view_category_group_by_type WHERE type = $1`, typeCategory).Scan(&rawResults).Error
-	if err != nil {
-		log.Fatal(err)
-	}
 	if err != nil {
 		return nil, errors.New("category group by type not found")
 	}
