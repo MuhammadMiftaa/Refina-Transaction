@@ -16,6 +16,8 @@ func ConvertToResponseType(data interface{}) interface{} {
 		ID:              data.(model.Transactions).ID.String(),
 		WalletID:        data.(model.Transactions).WalletID.String(),
 		CategoryID:      data.(model.Transactions).CategoryID.String(),
+		CategoryName:    data.(model.Transactions).Category.Name,
+		CategoryType:    string(data.(model.Transactions).Category.Type),
 		Amount:          data.(model.Transactions).Amount,
 		TransactionDate: data.(model.Transactions).TransactionDate,
 		Description:     data.(model.Transactions).Description,

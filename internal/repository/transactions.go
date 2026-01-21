@@ -44,7 +44,7 @@ func (transaction_repo *transactionsRepository) GetAllTransactions(ctx context.C
 	}
 
 	var transactions []model.Transactions
-	err = db.Order("transaction_date DESC").Find(&transactions).Error
+	err = db.Preload("Category").Order("transaction_date DESC").Find(&transactions).Error
 	if err != nil {
 		return nil, errors.New("user transactions not found")
 	}
@@ -73,7 +73,7 @@ func (transaction_repo *transactionsRepository) GetTransactionsByUserID(ctx cont
 	}
 
 	var userTransactions []model.Transactions
-	err = db.Where("user_id = ?", id).Order("transaction_date DESC").Find(&userTransactions).Error
+	err = db.Preload("Category").Where("user_id = ?", id).Order("transaction_date DESC").Find(&userTransactions).Error
 	if err != nil {
 		return nil, errors.New("user transactions not found")
 	}

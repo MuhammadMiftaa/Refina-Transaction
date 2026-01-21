@@ -6,7 +6,6 @@ CREATE TABLE categories (
     updated_at timestamptz DEFAULT now(),
     deleted_at timestamptz,
     parent_id uuid REFERENCES categories(id) ON DELETE SET NULL ON UPDATE CASCADE,
-    parent_label VARCHAR(50),
     name VARCHAR(50) NOT NULL,
     type VARCHAR(50) NOT NULL
 );
