@@ -23,7 +23,7 @@ CREATE TABLE transactions (
     wallet_id uuid NOT NULL,
     category_id uuid NOT NULL REFERENCES categories(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     amount numeric(18,2) NOT NULL,
-    transaction_date timestamptz zone NOT NULL,
+    transaction_date timestamptz NOT NULL,
     description text
 );
 
