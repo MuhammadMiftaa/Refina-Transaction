@@ -139,6 +139,11 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 		return dto.TransactionsResponse{}, errors.New("category not found")
 	}
 
+	// Check if wallet has sufficient balance
+	if wallet.GetBalance() < transaction.Amount {
+		return dto.TransactionsResponse{}, errors.New("insufficient wallet balance")
+	}
+
 	// Check if transaction type is valid and update wallet balance
 	switch category.Type {
 	case "expense":
@@ -226,6 +231,12 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 		return dto.FundTransferResponse{}, errors.New("destination wallet not found")
 	}
 
+	// Check if wallet has sufficient balance
+	if fromWallet.GetBalance() < (transaction.Amount + transaction.AdminFee) {
+		return dto.FundTransferResponse{}, errors.New("insufficient wallet balance")
+	}
+
+	// Check if source and destination wallets are the same
 	if fromWallet.GetId() == toWallet.GetId() {
 		return dto.FundTransferResponse{}, errors.New("source wallet and destination wallet cannot be the same")
 	}
