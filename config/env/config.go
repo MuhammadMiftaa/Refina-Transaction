@@ -12,17 +12,8 @@ import (
 type (
 	Server struct {
 		Mode         string `env:"MODE"`
-		Port         string `env:"PORT"`
+		HTTPPort     string `env:"HTTP_PORT"`
 		JWTSecretKey string `env:"JWT_SECRET_KEY"`
-	}
-
-	Client struct {
-		Url  string `env:"FRONTEND_URL"`
-		Port string `env:"CLIENT_PORT"`
-	}
-
-	WalletService struct {
-		BaseURL string `env:"WALLET_SERVICE_URL"`
 	}
 
 	Database struct {
@@ -41,12 +32,15 @@ type (
 		UseSSL      int    `env:"MINIO_USE_SSL"`
 	}
 
+	GRPCConfig struct {
+		WalletAddress string `env:"WALLET_ADDRESS"`
+	}
+
 	Config struct {
-		Server        Server
-		Client        Client
-		WalletService WalletService
-		Database      Database
-		Minio         Minio
+		Server     Server
+		Database   Database
+		Minio      Minio
+		GRPCConfig GRPCConfig
 	}
 )
 
@@ -66,26 +60,11 @@ func LoadNative() ([]string, error) {
 	if Cfg.Server.Mode, ok = os.LookupEnv("MODE"); !ok {
 		missing = append(missing, "MODE env is not set")
 	}
-	if Cfg.Server.Port, ok = os.LookupEnv("PORT"); !ok {
-		missing = append(missing, "PORT env is not set")
+	if Cfg.Server.HTTPPort, ok = os.LookupEnv("HTTP_PORT"); !ok {
+		missing = append(missing, "HTTP_PORT env is not set")
 	}
 	if Cfg.Server.JWTSecretKey, ok = os.LookupEnv("JWT_SECRET_KEY"); !ok {
 		missing = append(missing, "JWT_SECRET_KEY env is not set")
-	}
-	// ! ______________________________________________________
-
-	// ! Load Client configuration ____________________________
-	if Cfg.Client.Url, ok = os.LookupEnv("FRONTEND_URL"); !ok {
-		missing = append(missing, "FRONTEND_URL env is not set")
-	}
-	if Cfg.Client.Port, ok = os.LookupEnv("CLIENT_PORT"); !ok {
-		missing = append(missing, "CLIENT_PORT env is not set")
-	}
-	// ! ______________________________________________________
-
-	// ! Load Wallet Service configuration ___________________
-	if Cfg.WalletService.BaseURL, ok = os.LookupEnv("WALLET_SERVICE_URL"); !ok {
-		missing = append(missing, "WALLET_SERVICE_URL env is not set")
 	}
 	// ! ______________________________________________________
 
@@ -135,6 +114,12 @@ func LoadNative() ([]string, error) {
 	}
 	// ! ______________________________________________________
 
+	// ! Load gRPC configuration _____________________________
+	if Cfg.GRPCConfig.WalletAddress, ok = os.LookupEnv("WALLET_ADDRESS"); !ok {
+		missing = append(missing, "WALLET_ADDRESS env is not set")
+	}
+	// ! ______________________________________________________
+
 	return missing, nil
 }
 
@@ -156,26 +141,11 @@ func LoadByViper() ([]string, error) {
 	if Cfg.Server.Mode = config.GetString("MODE"); Cfg.Server.Mode == "" {
 		missing = append(missing, "MODE env is not set")
 	}
-	if Cfg.Server.Port = config.GetString("PORT"); Cfg.Server.Port == "" {
-		missing = append(missing, "PORT env is not set")
+	if Cfg.Server.HTTPPort = config.GetString("HTTP_PORT"); Cfg.Server.HTTPPort == "" {
+		missing = append(missing, "HTTP_PORT env is not set")
 	}
 	if Cfg.Server.JWTSecretKey = config.GetString("JWT_SECRET_KEY"); Cfg.Server.JWTSecretKey == "" {
 		missing = append(missing, "JWT_SECRET_KEY env is not set")
-	}
-	// ! ______________________________________________________
-
-	// ! Load Client configuration ____________________________
-	if Cfg.Client.Url = config.GetString("CLIENT.URL"); Cfg.Client.Url == "" {
-		missing = append(missing, "CLIENT.URL env is not set")
-	}
-	if Cfg.Client.Port = config.GetString("CLIENT.PORT"); Cfg.Client.Port == "" {
-		missing = append(missing, "CLIENT.PORT env is not set")
-	}
-	// ! ______________________________________________________
-
-	// ! Load Wallet Service configuration ___________________
-	if Cfg.WalletService.BaseURL = config.GetString("WALLET_SERVICE.URL"); Cfg.WalletService.BaseURL == "" {
-		missing = append(missing, "WALLET_SERVICE.URL env is not set")
 	}
 	// ! ______________________________________________________
 
@@ -213,7 +183,12 @@ func LoadByViper() ([]string, error) {
 	if Cfg.Minio.UseSSL = config.GetInt("OBJECT-STORAGE.MINIO.USE_SSL"); Cfg.Minio.UseSSL < 0 || Cfg.Minio.UseSSL > 1 {
 		missing = append(missing, "OBJECT-STORAGE.MINIO.USE_SSL env is not valid")
 	}
+	// ! ______________________________________________________
 
+	// ! Load gRPC configuration _____________________________
+	if Cfg.GRPCConfig.WalletAddress = config.GetString("GRPC-CONFIG.WALLET_ADDRESS"); Cfg.GRPCConfig.WalletAddress == "" {
+		missing = append(missing, "GRPC-CONFIG.WALLET_ADDRESS env is not set")
+	}
 	// ! ______________________________________________________
 
 	return missing, nil

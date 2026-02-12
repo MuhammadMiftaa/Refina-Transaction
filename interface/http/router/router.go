@@ -1,7 +1,10 @@
 package router
 
 import (
+	"net/http"
+
 	"refina-transaction/config/db"
+	"refina-transaction/config/env"
 	"refina-transaction/config/miniofs"
 	"refina-transaction/interface/http/middleware"
 	"refina-transaction/interface/http/routes"
@@ -9,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter() *gin.Engine {
+func SetupHTTPServer() *http.Server {
 	router := gin.Default()
 
 	router.Use(middleware.CORSMiddleware(), middleware.GinMiddleware())
@@ -23,5 +26,8 @@ func SetupRouter() *gin.Engine {
 	routes.TransactionRoutes(router, db.DB, miniofs.MinioClient)
 	routes.CategoryRoutes(router, db.DB)
 
-	return router
+	return &http.Server{
+		Addr:    ":" + env.Cfg.Server.HTTPPort,
+		Handler: router,
+	}
 }

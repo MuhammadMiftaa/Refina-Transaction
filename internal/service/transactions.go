@@ -7,7 +7,7 @@ import (
 
 	"refina-transaction/config/log"
 	"refina-transaction/config/miniofs"
-	external "refina-transaction/external/service"
+	"refina-transaction/interface/grpc/client"
 	"refina-transaction/internal/repository"
 	"refina-transaction/internal/types/dto"
 	"refina-transaction/internal/types/model"
@@ -33,10 +33,10 @@ type transactionsService struct {
 	categoryRepo    repository.CategoriesRepository
 	attachmentRepo  repository.AttachmentsRepository
 	minio           *miniofs.MinIOManager
-	walletClient    *external.WalletClient
+	walletClient    client.WalletClient
 }
 
-func NewTransactionService(txManager repository.TxManager, transactionRepo repository.TransactionsRepository, walletRepo *external.WalletClient, categoryRepo repository.CategoriesRepository, attachmentRepo repository.AttachmentsRepository, minio *miniofs.MinIOManager) TransactionsService {
+func NewTransactionService(txManager repository.TxManager, transactionRepo repository.TransactionsRepository, walletRepo client.WalletClient, categoryRepo repository.CategoriesRepository, attachmentRepo repository.AttachmentsRepository, minio *miniofs.MinIOManager) TransactionsService {
 	return &transactionsService{
 		txManager:       txManager,
 		transactionRepo: transactionRepo,
@@ -161,7 +161,7 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 	}
 
 	// Update wallet balance
-	_, err = transaction_serv.walletClient.UpdateWallet(ctx, wallet.ID, wallet)
+	_, err = transaction_serv.walletClient.UpdateWallet(ctx, wallet)
 	if err != nil {
 		return dto.TransactionsResponse{}, errors.New("failed to update wallet")
 	}
@@ -226,7 +226,7 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 		return dto.FundTransferResponse{}, errors.New("destination wallet not found")
 	}
 
-	if fromWallet.ID == toWallet.ID {
+	if fromWallet.GetId() == toWallet.GetId() {
 		return dto.FundTransferResponse{}, errors.New("source wallet and destination wallet cannot be the same")
 	}
 
@@ -256,10 +256,10 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 	}
 
 	// Update wallet balance
-	if _, err = transaction_serv.walletClient.UpdateWallet(ctx, fromWallet.ID, fromWallet); err != nil {
+	if _, err = transaction_serv.walletClient.UpdateWallet(ctx, fromWallet); err != nil {
 		return dto.FundTransferResponse{}, errors.New("failed to update from wallet")
 	}
-	if _, err = transaction_serv.walletClient.UpdateWallet(ctx, toWallet.ID, toWallet); err != nil {
+	if _, err = transaction_serv.walletClient.UpdateWallet(ctx, toWallet); err != nil {
 		return dto.FundTransferResponse{}, errors.New("failed to update to wallet")
 	}
 
@@ -268,7 +268,7 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 		CategoryID:      FromCategoryID,
 		Amount:          transaction.Amount + transaction.AdminFee,
 		TransactionDate: transaction.Date,
-		Description:     "fund transfer to " + toWallet.Name + "(Cash Out)",
+		Description:     "fund transfer to " + toWallet.GetName() + "(Cash Out)",
 	})
 	if err != nil {
 		return dto.FundTransferResponse{}, errors.New("failed to create from transaction")
@@ -279,7 +279,7 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 		CategoryID:      ToCategoryID,
 		Amount:          transaction.Amount,
 		TransactionDate: transaction.Date,
-		Description:     "fund transfer from " + fromWallet.Name + "(Cash In)",
+		Description:     "fund transfer from " + fromWallet.GetName() + "(Cash In)",
 	})
 	if err != nil {
 		return dto.FundTransferResponse{}, errors.New("failed to create to transaction")
@@ -419,7 +419,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 			return dto.TransactionsResponse{}, errors.New("invalid transaction type")
 		}
 
-		if _, err = transaction_serv.walletClient.UpdateWallet(ctx, oldWallet.ID, oldWallet); err != nil {
+		if _, err = transaction_serv.walletClient.UpdateWallet(ctx, oldWallet); err != nil {
 			return dto.TransactionsResponse{}, errors.New("failed to update wallet")
 		}
 
@@ -439,7 +439,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 			return dto.TransactionsResponse{}, errors.New("invalid transaction type")
 		}
 
-		if _, err = transaction_serv.walletClient.UpdateWallet(ctx, newWallet.ID, newWallet); err != nil {
+		if _, err = transaction_serv.walletClient.UpdateWallet(ctx, newWallet); err != nil {
 			return dto.TransactionsResponse{}, errors.New("failed to update new wallet")
 		}
 
@@ -471,7 +471,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 			return dto.TransactionsResponse{}, errors.New("invalid transaction type")
 		}
 
-		if _, err = transaction_serv.walletClient.UpdateWallet(ctx, oldWallet.ID, oldWallet); err != nil {
+		if _, err = transaction_serv.walletClient.UpdateWallet(ctx, oldWallet); err != nil {
 			return dto.TransactionsResponse{}, errors.New("failed to update wallet")
 		}
 
@@ -589,7 +589,7 @@ func (transaction_serv *transactionsService) DeleteTransaction(ctx context.Conte
 	}
 
 	// Update wallet balance
-	_, err = transaction_serv.walletClient.UpdateWallet(ctx, wallet.ID, wallet)
+	_, err = transaction_serv.walletClient.UpdateWallet(ctx, wallet)
 	if err != nil {
 		return dto.TransactionsResponse{}, errors.New("failed to update wallet")
 	}

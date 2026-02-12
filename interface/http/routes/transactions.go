@@ -2,7 +2,7 @@ package routes
 
 import (
 	"refina-transaction/config/miniofs"
-	external "refina-transaction/external/service"
+	"refina-transaction/interface/grpc/client"
 	"refina-transaction/interface/http/handler"
 	"refina-transaction/interface/http/middleware"
 	"refina-transaction/internal/repository"
@@ -15,7 +15,7 @@ import (
 func TransactionRoutes(version *gin.Engine, db *gorm.DB, minio *miniofs.MinIOManager) {
 	txManager := repository.NewTxManager(db)
 	transactionRepo := repository.NewTransactionRepository(db)
-	walletRepo := external.NewWalletClient()
+	walletRepo := client.NewWalletClient(client.GetManager().GetWalletClient())
 	categoryRepo := repository.NewCategoryRepository(db)
 	attachmentRepo := repository.NewAttachmentsRepository(db)
 
