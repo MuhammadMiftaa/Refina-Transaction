@@ -63,9 +63,18 @@ func (transactionHandler *TransactionHandler) GetTransactionByID(c *gin.Context)
 
 func (transactionHandler *TransactionHandler) GetTransactionsByUserID(c *gin.Context) {
 	ctx := c.Request.Context()
-	token := c.GetHeader("Authorization")
 
-	transactions, err := transactionHandler.transactionServ.GetTransactionsByUserID(ctx, token)
+	var ids []string
+	if err := c.BindJSON(&ids); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":     false,
+			"statusCode": 400,
+			"message":    err.Error(),
+		})
+		return
+	}
+
+	transactions, err := transactionHandler.transactionServ.GetTransactionsByWalletIDs(ctx, ids)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":     false,

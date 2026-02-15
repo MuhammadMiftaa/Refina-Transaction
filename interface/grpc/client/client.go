@@ -8,7 +8,7 @@ import (
 
 	"refina-transaction/config/env"
 
-	wpb "github.com/MuhammadMiftaa/Golang-Refina-Protobuf/wallet"
+	wpb "github.com/MuhammadMiftaa/Refina-Protobuf/wallet"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

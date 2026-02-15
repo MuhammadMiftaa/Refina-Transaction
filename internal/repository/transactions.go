@@ -12,7 +12,7 @@ import (
 type TransactionsRepository interface {
 	GetAllTransactions(ctx context.Context, tx Transaction) ([]model.Transactions, error)
 	GetTransactionByID(ctx context.Context, tx Transaction, id string) (model.Transactions, error)
-	GetTransactionsByUserID(ctx context.Context, tx Transaction, id string) ([]model.Transactions, error)
+	GetTransactionsByWalletIDs(ctx context.Context, tx Transaction, ids []string) ([]model.Transactions, error)
 	CreateTransaction(ctx context.Context, tx Transaction, transaction model.Transactions) (model.Transactions, error)
 	UpdateTransaction(ctx context.Context, tx Transaction, transaction model.Transactions) (model.Transactions, error)
 	DeleteTransaction(ctx context.Context, tx Transaction, transaction model.Transactions) (model.Transactions, error)
@@ -66,18 +66,18 @@ func (trasaction_repo *transactionsRepository) GetTransactionByID(ctx context.Co
 	return transaction, nil
 }
 
-func (transaction_repo *transactionsRepository) GetTransactionsByUserID(ctx context.Context, tx Transaction, id string) ([]model.Transactions, error) {
+func (transaction_repo *transactionsRepository) GetTransactionsByWalletIDs(ctx context.Context, tx Transaction, ids []string) ([]model.Transactions, error) {
 	db, err := transaction_repo.getDB(ctx, tx)
 	if err != nil {
 		return nil, err
 	}
 
-	var userTransactions []model.Transactions
-	err = db.Preload("Category").Where("user_id = ?", id).Order("transaction_date DESC").Find(&userTransactions).Error
+	var transactions []model.Transactions
+	err = db.Preload("Category").Preload("Attachments").Where("wallet_id IN ?", ids).Order("transaction_date DESC").Find(&transactions).Error
 	if err != nil {
 		return nil, errors.New("user transactions not found")
 	}
-	return userTransactions, nil
+	return transactions, nil
 }
 
 func (transaction_repo *transactionsRepository) CreateTransaction(ctx context.Context, tx Transaction, transaction model.Transactions) (model.Transactions, error) {

@@ -14,5 +14,6 @@ type Transactions struct {
 	TransactionDate time.Time `gorm:"type:timestamp;not null"`
 	Description     string    `gorm:"type:text"`
 
-	Category Categories `gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	Category    Categories    `gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	Attachments []Attachments `gorm:"foreignKey:TransactionID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 }

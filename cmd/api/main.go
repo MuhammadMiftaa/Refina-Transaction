@@ -14,6 +14,7 @@ import (
 	"refina-transaction/config/miniofs"
 	"refina-transaction/interface/grpc/client"
 	"refina-transaction/interface/http/router"
+	grpcserver "refina-transaction/interface/grpc/server"
 )
 
 func init() {
@@ -71,6 +72,20 @@ func main() {
 		log.Info("Starting HTTP server successfully")
 	}
 
+	// Set up the gRPC server
+	grpcServer, lis, err := grpcserver.SetupGRPCServer()
+	if err != nil {
+		log.Log.Fatalf("Failed to set up gRPC server: %v", err)
+	}
+	if grpcServer != nil && lis != nil {
+		go func() {
+			if err := grpcServer.Serve(*lis); err != nil {
+				log.Log.Fatalf("Failed to serve gRPC: %v", err)
+			}
+		}()
+		log.Info("Starting gRPC server successfully")
+	}
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -82,6 +97,8 @@ func main() {
 	if err := httpServer.Shutdown(ctx); err != nil {
 		log.Log.Fatalf("Failed to shutdown HTTP server: %v", err)
 	}
+
+	grpcServer.GracefulStop()
 
 	if err := grpcManager.Shutdown(ctx); err != nil {
 		log.Log.Fatalf("Failed to shutdown gRPC clients: %v", err)

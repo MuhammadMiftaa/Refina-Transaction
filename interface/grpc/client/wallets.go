@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	wpb "github.com/MuhammadMiftaa/Golang-Refina-Protobuf/wallet"
+	wpb "github.com/MuhammadMiftaa/Refina-Protobuf/wallet"
 )
 
 type WalletClient interface {
