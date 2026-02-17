@@ -177,6 +177,7 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 		Amount:          transaction.Amount,
 		TransactionDate: transaction.Date,
 		Description:     transaction.Description,
+		Category:        category,
 	})
 	if err != nil {
 		return dto.TransactionsResponse{}, errors.New("failed to create transaction")
