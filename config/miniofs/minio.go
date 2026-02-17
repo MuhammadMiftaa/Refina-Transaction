@@ -67,7 +67,7 @@ var (
 )
 
 // Init initializes global MinIO manager - dipanggil sekali di main.go
-func SetupMinio(cfg env.Minio) {
+func SetupMinio(cfg env.Minio) *MinIOManager {
 	once.Do(func() {
 		cfg := MinIOConfig{
 			Host:           cfg.Host,
@@ -86,6 +86,8 @@ func SetupMinio(cfg env.Minio) {
 
 		log.Info("MinIO client initialized successfully")
 	})
+
+	return MinioClient
 }
 
 // newMinIOManager creates new MinIO manager

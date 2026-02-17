@@ -2,6 +2,8 @@ package db
 
 import (
 	"fmt"
+	"sync"
+	"time"
 
 	"refina-transaction/config/env"
 	"refina-transaction/config/log"
@@ -10,15 +12,116 @@ import (
 	"gorm.io/gorm"
 )
 
-var DB *gorm.DB
+type DatabaseClient interface {
+	GetDB() *gorm.DB
+	Close() error
+}
 
-func SetupDatabase(cfg env.Database) {
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC", cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort)
+type databaseClient struct {
+	db *gorm.DB
+	mu sync.RWMutex
+}
+
+var (
+	instance DatabaseClient
+	once     sync.Once
+)
+
+type ConnectionPoolConfig struct {
+	MaxIdleConns    int
+	MaxOpenConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
+}
+
+func DefaultPoolConfig() ConnectionPoolConfig {
+	return ConnectionPoolConfig{
+		MaxIdleConns:    10,
+		MaxOpenConns:    100,
+		ConnMaxLifetime: time.Hour,
+		ConnMaxIdleTime: time.Minute * 10,
+	}
+}
+
+func NewDatabaseClient(cfg env.Database, poolCfg ConnectionPoolConfig) (DatabaseClient, error) {
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
+		cfg.DBHost,
+		cfg.DBUser,
+		cfg.DBPassword,
+		cfg.DBName,
+		cfg.DBPort,
+	)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Log.Fatalf("Gagal terhubung ke database: %v", err)
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	DB = db
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database instance: %w", err)
+	}
+
+	sqlDB.SetMaxIdleConns(poolCfg.MaxIdleConns)
+	sqlDB.SetMaxOpenConns(poolCfg.MaxOpenConns)
+	sqlDB.SetConnMaxLifetime(poolCfg.ConnMaxLifetime)
+	sqlDB.SetConnMaxIdleTime(poolCfg.ConnMaxIdleTime)
+
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	log.Log.Info("Database connected successfully with connection pool")
+
+	return &databaseClient{
+		db: db,
+	}, nil
+}
+
+func GetInstance(cfg env.Database, poolCfg ...ConnectionPoolConfig) DatabaseClient {
+	once.Do(func() {
+		var pool ConnectionPoolConfig
+		if len(poolCfg) > 0 {
+			pool = poolCfg[0]
+		} else {
+			pool = DefaultPoolConfig()
+		}
+
+		client, err := NewDatabaseClient(cfg, pool)
+		if err != nil {
+			log.Log.Fatalf("Failed to initialize Database client: %v", err)
+		}
+		instance = client
+	})
+
+	return instance
+}
+
+func (d *databaseClient) GetDB() *gorm.DB {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	return d.db
+}
+
+func (d *databaseClient) Close() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.db != nil {
+		sqlDB, err := d.db.DB()
+		if err != nil {
+			return fmt.Errorf("failed to get database instance: %w", err)
+		}
+
+		if err := sqlDB.Close(); err != nil {
+			return fmt.Errorf("failed to close database connection: %w", err)
+		}
+
+		d.db = nil
+		log.Log.Info("Database connection closed successfully")
+	}
+
+	return nil
 }

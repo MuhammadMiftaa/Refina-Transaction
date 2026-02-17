@@ -37,11 +37,20 @@ type (
 		WalletAddress string `env:"WALLET_ADDRESS"`
 	}
 
+	RabbitMQ struct {
+		RMQHost        string `env:"RABBITMQ_HOST"`
+		RMQPort        string `env:"RABBITMQ_PORT"`
+		RMQUser        string `env:"RABBITMQ_USER"`
+		RMQPassword    string `env:"RABBITMQ_PASSWORD"`
+		RMQVirtualHost string `env:"RABBITMQ_VIRTUAL_HOST"`
+	}
+
 	Config struct {
 		Server     Server
 		Database   Database
 		Minio      Minio
 		GRPCConfig GRPCConfig
+		RabbitMQ   RabbitMQ
 	}
 )
 
@@ -124,6 +133,24 @@ func LoadNative() ([]string, error) {
 	}
 	// ! ______________________________________________________
 
+	// ! Load RabbitMQ configuration __________________________
+	if Cfg.RabbitMQ.RMQUser, ok = os.LookupEnv("RABBITMQ_USER"); !ok {
+		missing = append(missing, "RABBITMQ_USER env is not set")
+	}
+	if Cfg.RabbitMQ.RMQPassword, ok = os.LookupEnv("RABBITMQ_PASSWORD"); !ok {
+		missing = append(missing, "RABBITMQ_PASSWORD env is not set")
+	}
+	if Cfg.RabbitMQ.RMQHost, ok = os.LookupEnv("RABBITMQ_HOST"); !ok {
+		missing = append(missing, "RABBITMQ_HOST env is not set")
+	}
+	if Cfg.RabbitMQ.RMQPort, ok = os.LookupEnv("RABBITMQ_PORT"); !ok {
+		missing = append(missing, "RABBITMQ_PORT env is not set")
+	}
+	if Cfg.RabbitMQ.RMQVirtualHost, ok = os.LookupEnv("RABBITMQ_VIRTUAL_HOST"); !ok {
+		missing = append(missing, "RABBITMQ_VIRTUAL_HOST env is not set")
+	}
+	// ! ______________________________________________________
+
 	return missing, nil
 }
 
@@ -195,6 +222,24 @@ func LoadByViper() ([]string, error) {
 	// ! Load gRPC configuration _____________________________
 	if Cfg.GRPCConfig.WalletAddress = config.GetString("GRPC-CONFIG.WALLET_ADDRESS"); Cfg.GRPCConfig.WalletAddress == "" {
 		missing = append(missing, "GRPC-CONFIG.WALLET_ADDRESS env is not set")
+	}
+	// ! ______________________________________________________
+
+	// ! Load RabbitMQ configuration __________________________
+	if Cfg.RabbitMQ.RMQUser = config.GetString("MESSAGE-BROKER.RABBITMQ.USER"); Cfg.RabbitMQ.RMQUser == "" {
+		missing = append(missing, "MESSAGE-BROKER.RABBITMQ.USER env is not set")
+	}
+	if Cfg.RabbitMQ.RMQPassword = config.GetString("MESSAGE-BROKER.RABBITMQ.PASSWORD"); Cfg.RabbitMQ.RMQPassword == "" {
+		missing = append(missing, "MESSAGE-BROKER.RABBITMQ.PASSWORD env is not set")
+	}
+	if Cfg.RabbitMQ.RMQHost = config.GetString("MESSAGE-BROKER.RABBITMQ.HOST"); Cfg.RabbitMQ.RMQHost == "" {
+		missing = append(missing, "MESSAGE-BROKER.RABBITMQ.HOST env is not set")
+	}
+	if Cfg.RabbitMQ.RMQPort = config.GetString("MESSAGE-BROKER.RABBITMQ.PORT"); Cfg.RabbitMQ.RMQPort == "" {
+		missing = append(missing, "MESSAGE-BROKER.RABBITMQ.PORT env is not set")
+	}
+	if Cfg.RabbitMQ.RMQVirtualHost = config.GetString("MESSAGE-BROKER.RABBITMQ.VIRTUAL_HOST"); Cfg.RabbitMQ.RMQVirtualHost == "" {
+		missing = append(missing, "MESSAGE-BROKER.RABBITMQ.VIRTUAL_HOST env is not set")
 	}
 	// ! ______________________________________________________
 

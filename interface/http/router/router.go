@@ -8,11 +8,12 @@ import (
 	"refina-transaction/config/miniofs"
 	"refina-transaction/interface/http/middleware"
 	"refina-transaction/interface/http/routes"
+	"refina-transaction/interface/queue"
 
 	"github.com/gin-gonic/gin"
 )
 
-func SetupHTTPServer() *http.Server {
+func SetupHTTPServer(dbInstance db.DatabaseClient, minioInstance *miniofs.MinIOManager, queueInstance queue.RabbitMQClient) *http.Server {
 	router := gin.Default()
 
 	router.Use(middleware.CORSMiddleware(), middleware.GinMiddleware())
@@ -23,8 +24,8 @@ func SetupHTTPServer() *http.Server {
 		})
 	})
 
-	routes.TransactionRoutes(router, db.DB, miniofs.MinioClient)
-	routes.CategoryRoutes(router, db.DB)
+	routes.TransactionRoutes(router, dbInstance.GetDB(), minioInstance)
+	routes.CategoryRoutes(router, dbInstance.GetDB())
 
 	return &http.Server{
 		Addr:    ":" + env.Cfg.Server.HTTPPort,

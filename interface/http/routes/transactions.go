@@ -18,8 +18,9 @@ func TransactionRoutes(version *gin.Engine, db *gorm.DB, minio *miniofs.MinIOMan
 	walletRepo := client.NewWalletClient(client.GetManager().GetWalletClient())
 	categoryRepo := repository.NewCategoryRepository(db)
 	attachmentRepo := repository.NewAttachmentsRepository(db)
+	outboxRepository := repository.NewOutboxRepository(db)
 
-	Transaction_serv := service.NewTransactionService(txManager, transactionRepo, walletRepo, categoryRepo, attachmentRepo, minio)
+	Transaction_serv := service.NewTransactionService(txManager, transactionRepo, walletRepo, categoryRepo, attachmentRepo, outboxRepository, minio)
 	Transaction_handler := handler.NewTransactionHandler(Transaction_serv)
 
 	transaction := version.Group("/transactions")

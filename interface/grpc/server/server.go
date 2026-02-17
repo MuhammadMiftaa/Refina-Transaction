@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-func SetupGRPCServer() (*grpc.Server, *net.Listener, error) {
+func SetupGRPCServer(dbInstance db.DatabaseClient) (*grpc.Server, *net.Listener, error) {
 	lis, err := net.Listen("tcp", ":"+env.Cfg.Server.GRPCPort)
 	if err != nil {
 		return nil, nil, err
@@ -20,7 +20,7 @@ func SetupGRPCServer() (*grpc.Server, *net.Listener, error) {
 	s := grpc.NewServer()
 
 	transactionServer := &transactionServer{
-		transactionsRepository: repository.NewTransactionRepository(db.DB),
+		transactionsRepository: repository.NewTransactionRepository(dbInstance.GetDB()),
 	}
 	tpb.RegisterTransactionServiceServer(s, transactionServer)
 

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -12,6 +13,7 @@ import (
 	"refina-transaction/internal/types/dto"
 	"refina-transaction/internal/types/model"
 	helper "refina-transaction/internal/utils"
+	"refina-transaction/internal/utils/data"
 
 	"github.com/google/uuid"
 )
@@ -28,22 +30,24 @@ type TransactionsService interface {
 }
 
 type transactionsService struct {
-	txManager       repository.TxManager
-	transactionRepo repository.TransactionsRepository
-	categoryRepo    repository.CategoriesRepository
-	attachmentRepo  repository.AttachmentsRepository
-	minio           *miniofs.MinIOManager
-	walletClient    client.WalletClient
+	txManager        repository.TxManager
+	transactionRepo  repository.TransactionsRepository
+	categoryRepo     repository.CategoriesRepository
+	attachmentRepo   repository.AttachmentsRepository
+	outboxRepository repository.OutboxRepository
+	minio            *miniofs.MinIOManager
+	walletClient     client.WalletClient
 }
 
-func NewTransactionService(txManager repository.TxManager, transactionRepo repository.TransactionsRepository, walletRepo client.WalletClient, categoryRepo repository.CategoriesRepository, attachmentRepo repository.AttachmentsRepository, minio *miniofs.MinIOManager) TransactionsService {
+func NewTransactionService(txManager repository.TxManager, transactionRepo repository.TransactionsRepository, walletRepo client.WalletClient, categoryRepo repository.CategoriesRepository, attachmentRepo repository.AttachmentsRepository, outboxRepository repository.OutboxRepository, minio *miniofs.MinIOManager) TransactionsService {
 	return &transactionsService{
-		txManager:       txManager,
-		transactionRepo: transactionRepo,
-		categoryRepo:    categoryRepo,
-		attachmentRepo:  attachmentRepo,
-		minio:           minio,
-		walletClient:    walletRepo,
+		txManager:        txManager,
+		transactionRepo:  transactionRepo,
+		categoryRepo:     categoryRepo,
+		attachmentRepo:   attachmentRepo,
+		outboxRepository: outboxRepository,
+		minio:            minio,
+		walletClient:     walletRepo,
 	}
 }
 
@@ -192,12 +196,30 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 		}
 	}
 
+	transactionResponse := helper.ConvertToResponseType(transactionNew).(dto.TransactionsResponse)
+
+	payload, err := json.Marshal(transactionResponse)
+	if err != nil {
+		return dto.TransactionsResponse{}, errors.New("failed to marshal transaction response")
+	}
+
+	outboxMsg := &model.OutboxMessage{
+		AggregateID: transactionResponse.ID,
+		EventType:   data.OUTBOX_EVENT_TRANSACTION_CREATED,
+		Payload:     payload,
+		Published:   false,
+		MaxRetries:  data.OUTBOX_PUBLISH_MAX_RETRIES,
+	}
+
+	if err := transaction_serv.outboxRepository.Create(ctx, tx, outboxMsg); err != nil {
+		tx.Rollback()
+		return dto.TransactionsResponse{}, err
+	}
+
 	// Commit transaksi jika semua sukses
 	if err := tx.Commit(); err != nil {
 		return dto.TransactionsResponse{}, errors.New("failed to commit transaction")
 	}
-
-	transactionResponse := helper.ConvertToResponseType(transactionNew).(dto.TransactionsResponse)
 
 	return transactionResponse, nil
 }
@@ -289,6 +311,38 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 	})
 	if err != nil {
 		return dto.FundTransferResponse{}, errors.New("failed to create to transaction")
+	}
+
+	transactionNewFromPayload, err := json.Marshal(helper.ConvertToResponseType(transactionNewFrom).(dto.TransactionsResponse))
+	if err != nil {
+		return dto.FundTransferResponse{}, errors.New("failed to marshal transaction response")
+	}
+
+	transactionNewToPayload, err := json.Marshal(helper.ConvertToResponseType(transactionNewTo).(dto.TransactionsResponse))
+	if err != nil {
+		return dto.FundTransferResponse{}, errors.New("failed to marshal transaction response")
+	}
+
+	if err := transaction_serv.outboxRepository.Create(ctx, tx, &model.OutboxMessage{
+		AggregateID: transactionNewFrom.ID.String(),
+		EventType:   data.OUTBOX_EVENT_TRANSACTION_CREATED,
+		Payload:     transactionNewFromPayload,
+		Published:   false,
+		MaxRetries:  data.OUTBOX_PUBLISH_MAX_RETRIES,
+	}); err != nil {
+		tx.Rollback()
+		return dto.FundTransferResponse{}, err
+	}
+
+	if err := transaction_serv.outboxRepository.Create(ctx, tx, &model.OutboxMessage{
+		AggregateID: transactionNewTo.ID.String(),
+		EventType:   data.OUTBOX_EVENT_TRANSACTION_CREATED,
+		Payload:     transactionNewToPayload,
+		Published:   false,
+		MaxRetries:  data.OUTBOX_PUBLISH_MAX_RETRIES,
+	}); err != nil {
+		tx.Rollback()
+		return dto.FundTransferResponse{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -545,12 +599,30 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 		}
 	}
 
+	transactionResponse := helper.ConvertToResponseType(transactionUpdated).(dto.TransactionsResponse)
+
+	payload, err := json.Marshal(transactionResponse)
+	if err != nil {
+		return dto.TransactionsResponse{}, errors.New("failed to marshal transaction response")
+	}
+
+	outboxMsg := &model.OutboxMessage{
+		AggregateID: transactionResponse.ID,
+		EventType:   data.OUTBOX_EVENT_TRANSACTION_UPDATED,
+		Payload:     payload,
+		Published:   false,
+		MaxRetries:  data.OUTBOX_PUBLISH_MAX_RETRIES,
+	}
+
+	if err := transaction_serv.outboxRepository.Create(ctx, tx, outboxMsg); err != nil {
+		tx.Rollback()
+		return dto.TransactionsResponse{}, err
+	}
+
 	// ! Commit transaction if all operations are successful
 	if err = tx.Commit(); err != nil {
 		return dto.TransactionsResponse{}, errors.New("failed to commit transaction")
 	}
-
-	transactionResponse := helper.ConvertToResponseType(transactionUpdated).(dto.TransactionsResponse)
 
 	return transactionResponse, nil
 }
@@ -606,12 +678,30 @@ func (transaction_serv *transactionsService) DeleteTransaction(ctx context.Conte
 		return dto.TransactionsResponse{}, errors.New("failed to delete transaction")
 	}
 
+	transactionResponse := helper.ConvertToResponseType(transactionDeleted).(dto.TransactionsResponse)
+
+	payload, err := json.Marshal(transactionResponse)
+	if err != nil {
+		return dto.TransactionsResponse{}, errors.New("failed to marshal transaction response")
+	}
+
+	outboxMsg := &model.OutboxMessage{
+		AggregateID: transactionResponse.ID,
+		EventType:   data.OUTBOX_EVENT_TRANSACTION_DELETED,
+		Payload:     payload,
+		Published:   false,
+		MaxRetries:  data.OUTBOX_PUBLISH_MAX_RETRIES,
+	}
+
+	if err := transaction_serv.outboxRepository.Create(ctx, tx, outboxMsg); err != nil {
+		tx.Rollback()
+		return dto.TransactionsResponse{}, err
+	}
+
 	// Commit transaksi jika semua sukses
 	if err := tx.Commit(); err != nil {
 		return dto.TransactionsResponse{}, errors.New("failed to commit transaction")
 	}
-
-	transactionResponse := helper.ConvertToResponseType(transactionDeleted).(dto.TransactionsResponse)
 
 	return transactionResponse, nil
 }
