@@ -120,12 +120,7 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 		return dto.TransactionsResponse{}, errors.New("failed to create transaction")
 	}
 
-	defer func() {
-		// Rollback otomatis jika transaksi belum di-commit
-		if r := recover(); r != nil || err != nil {
-			tx.Rollback()
-		}
-	}()
+	defer tx.Rollback()
 
 	// Check if wallet and category exist
 	wallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transaction.WalletID)
@@ -213,7 +208,6 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 	}
 
 	if err := transaction_serv.outboxRepository.Create(ctx, tx, outboxMsg); err != nil {
-		tx.Rollback()
 		return dto.TransactionsResponse{}, err
 	}
 
@@ -231,12 +225,7 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 		return dto.FundTransferResponse{}, errors.New("failed to create transaction")
 	}
 
-	defer func() {
-		// Rollback otomatis jika transaksi belum di-commit
-		if r := recover(); r != nil || err != nil {
-			tx.Rollback()
-		}
-	}()
+	defer tx.Rollback()
 
 	// Check if wallet and category exist
 	fromWallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transaction.FromWalletID)
@@ -331,7 +320,6 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 		Published:   false,
 		MaxRetries:  data.OUTBOX_PUBLISH_MAX_RETRIES,
 	}); err != nil {
-		tx.Rollback()
 		return dto.FundTransferResponse{}, err
 	}
 
@@ -342,7 +330,6 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 		Published:   false,
 		MaxRetries:  data.OUTBOX_PUBLISH_MAX_RETRIES,
 	}); err != nil {
-		tx.Rollback()
 		return dto.FundTransferResponse{}, err
 	}
 
@@ -433,12 +420,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 	}
 
 	// ! Defer rollback if there is an error
-	defer func() {
-		// Rollback otomatis jika transaksi belum di-commit
-		if r := recover(); r != nil || err != nil {
-			tx.Rollback()
-		}
-	}()
+	defer tx.Rollback()
 
 	// ? Check if transaction exist
 	transactionExist, err := transaction_serv.transactionRepo.GetTransactionByID(ctx, tx, id)
@@ -616,7 +598,6 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 	}
 
 	if err := transaction_serv.outboxRepository.Create(ctx, tx, outboxMsg); err != nil {
-		tx.Rollback()
 		return dto.TransactionsResponse{}, err
 	}
 
@@ -634,11 +615,7 @@ func (transaction_serv *transactionsService) DeleteTransaction(ctx context.Conte
 		return dto.TransactionsResponse{}, errors.New("failed to create transaction")
 	}
 
-	defer func() {
-		if r := recover(); r != nil || err != nil {
-			tx.Rollback()
-		}
-	}()
+	defer tx.Rollback()
 
 	// Check if transaction exist
 	transactionExist, err := transaction_serv.transactionRepo.GetTransactionByID(ctx, tx, id)
@@ -695,7 +672,6 @@ func (transaction_serv *transactionsService) DeleteTransaction(ctx context.Conte
 	}
 
 	if err := transaction_serv.outboxRepository.Create(ctx, tx, outboxMsg); err != nil {
-		tx.Rollback()
 		return dto.TransactionsResponse{}, err
 	}
 

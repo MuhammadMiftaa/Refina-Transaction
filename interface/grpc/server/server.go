@@ -20,7 +20,10 @@ func SetupGRPCServer(dbInstance db.DatabaseClient) (*grpc.Server, *net.Listener,
 	s := grpc.NewServer()
 
 	transactionServer := &transactionServer{
+		txManager:              repository.NewTxManager(dbInstance.GetDB()),
 		transactionsRepository: repository.NewTransactionRepository(dbInstance.GetDB()),
+		categoryRepository:     repository.NewCategoryRepository(dbInstance.GetDB()),
+		outboxRepository:       repository.NewOutboxRepository(dbInstance.GetDB()),
 	}
 	tpb.RegisterTransactionServiceServer(s, transactionServer)
 

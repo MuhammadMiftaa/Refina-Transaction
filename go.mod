@@ -3,7 +3,7 @@ module refina-transaction
 go 1.24.4
 
 require (
-	github.com/MuhammadMiftaa/Refina-Protobuf v1.3.1
+	github.com/MuhammadMiftaa/Refina-Protobuf v1.3.3
 	github.com/gin-gonic/gin v1.10.1
 	google.golang.org/grpc v1.78.0
 	gorm.io/gorm v1.31.1
