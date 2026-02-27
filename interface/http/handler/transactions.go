@@ -2,9 +2,12 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
+	"refina-transaction/config/log"
 	"refina-transaction/internal/service"
 	"refina-transaction/internal/types/dto"
+	"refina-transaction/internal/utils/data"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,20 +22,27 @@ func NewTransactionHandler(transactionServ service.TransactionsService) *Transac
 
 func (transactionHandler *TransactionHandler) GetAllTransactions(c *gin.Context) {
 	ctx := c.Request.Context()
+	requestID, _ := c.Get(data.REQUEST_ID_LOCAL_KEY)
 
 	transactions, err := transactionHandler.transactionServ.GetAllTransactions(ctx)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		log.Error("get_all_transactions_failed", map[string]any{
+			"service":    data.TransactionService,
+			"request_id": requestID,
+			"error":      err.Error(),
+		})
+		statusCode, message := mapServiceError(err)
+		c.JSON(statusCode, gin.H{
+			"statusCode": statusCode,
 			"status":     false,
-			"statusCode": 400,
-			"message":    err.Error(),
+			"message":    message,
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":     true,
 		"statusCode": 200,
+		"status":     true,
 		"message":    "Get all transactions data",
 		"data":       transactions,
 	})
@@ -40,22 +50,30 @@ func (transactionHandler *TransactionHandler) GetAllTransactions(c *gin.Context)
 
 func (transactionHandler *TransactionHandler) GetTransactionByID(c *gin.Context) {
 	ctx := c.Request.Context()
+	requestID, _ := c.Get(data.REQUEST_ID_LOCAL_KEY)
 
 	id := c.Param("id")
 
 	transaction, err := transactionHandler.transactionServ.GetTransactionByID(ctx, id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		log.Error("get_transaction_by_id_failed", map[string]any{
+			"service":        data.TransactionService,
+			"request_id":     requestID,
+			"transaction_id": id,
+			"error":          err.Error(),
+		})
+		statusCode, message := mapServiceError(err)
+		c.JSON(statusCode, gin.H{
+			"statusCode": statusCode,
 			"status":     false,
-			"statusCode": 400,
-			"message":    err.Error(),
+			"message":    message,
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":     true,
 		"statusCode": 200,
+		"status":     true,
 		"message":    "Get transaction data by ID",
 		"data":       transaction,
 	})
@@ -63,30 +81,42 @@ func (transactionHandler *TransactionHandler) GetTransactionByID(c *gin.Context)
 
 func (transactionHandler *TransactionHandler) GetTransactionsByUserID(c *gin.Context) {
 	ctx := c.Request.Context()
+	requestID, _ := c.Get(data.REQUEST_ID_LOCAL_KEY)
 
 	var ids []string
 	if err := c.BindJSON(&ids); err != nil {
+		log.Warn("get_transactions_by_user_id_bad_request", map[string]any{
+			"service":    data.TransactionService,
+			"request_id": requestID,
+			"error":      err.Error(),
+		})
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":     false,
 			"statusCode": 400,
-			"message":    err.Error(),
+			"status":     false,
+			"message":    "invalid request body",
 		})
 		return
 	}
 
 	transactions, err := transactionHandler.transactionServ.GetTransactionsByWalletIDs(ctx, ids)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		log.Error("get_transactions_by_wallet_ids_failed", map[string]any{
+			"service":    data.TransactionService,
+			"request_id": requestID,
+			"error":      err.Error(),
+		})
+		statusCode, message := mapServiceError(err)
+		c.JSON(statusCode, gin.H{
+			"statusCode": statusCode,
 			"status":     false,
-			"statusCode": 400,
-			"message":    err.Error(),
+			"message":    message,
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":     true,
 		"statusCode": 200,
+		"status":     true,
 		"message":    "Get transactions data by wallet ID",
 		"data":       transactions,
 	})
@@ -94,6 +124,7 @@ func (transactionHandler *TransactionHandler) GetTransactionsByUserID(c *gin.Con
 
 func (transactionHandler *TransactionHandler) CreateTransaction(c *gin.Context) {
 	ctx := c.Request.Context()
+	requestID, _ := c.Get(data.REQUEST_ID_LOCAL_KEY)
 
 	types := c.Param("type")
 
@@ -105,10 +136,16 @@ func (transactionHandler *TransactionHandler) CreateTransaction(c *gin.Context) 
 	if types != "fund_transfer" {
 		var transaction dto.TransactionsRequest
 		if err := c.ShouldBindJSON(&transaction); err != nil {
+			log.Warn("create_transaction_bad_request", map[string]any{
+				"service":    data.TransactionService,
+				"request_id": requestID,
+				"type":       types,
+				"error":      err.Error(),
+			})
 			c.JSON(http.StatusBadRequest, gin.H{
-				"status":     false,
 				"statusCode": 400,
-				"message":    err.Error(),
+				"status":     false,
+				"message":    "invalid request body",
 			})
 			return
 		}
@@ -116,10 +153,15 @@ func (transactionHandler *TransactionHandler) CreateTransaction(c *gin.Context) 
 	} else {
 		var transaction dto.FundTransferRequest
 		if err := c.ShouldBindJSON(&transaction); err != nil {
+			log.Warn("create_fund_transfer_bad_request", map[string]any{
+				"service":    data.TransactionService,
+				"request_id": requestID,
+				"error":      err.Error(),
+			})
 			c.JSON(http.StatusBadRequest, gin.H{
-				"status":     false,
 				"statusCode": 400,
-				"message":    err.Error(),
+				"status":     false,
+				"message":    "invalid request body",
 			})
 			return
 		}
@@ -127,29 +169,51 @@ func (transactionHandler *TransactionHandler) CreateTransaction(c *gin.Context) 
 	}
 
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		log.Error("create_transaction_failed", map[string]any{
+			"service":    data.TransactionService,
+			"request_id": requestID,
+			"type":       types,
+			"error":      err.Error(),
+		})
+		statusCode, message := mapServiceError(err)
+		c.JSON(statusCode, gin.H{
+			"statusCode": statusCode,
 			"status":     false,
-			"statusCode": 400,
-			"message":    err.Error(),
+			"message":    message,
 		})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
+
+	log.Info("transaction_created", map[string]any{
+		"service":    data.TransactionService,
+		"request_id": requestID,
+		"type":       types,
+	})
+
+	c.JSON(http.StatusCreated, gin.H{
+		"statusCode": 201,
 		"status":     true,
-		"statusCode": 200,
 		"message":    "Create transaction data",
 		"data":       transactionCreated,
 	})
 }
 
 func (transactionHandler *TransactionHandler) UploadAttachment(c *gin.Context) {
+	requestID, _ := c.Get(data.REQUEST_ID_LOCAL_KEY)
+
 	ID := c.Param("id")
 	var payload dto.Attachments
 	if err := c.Bind(&payload); err != nil {
+		log.Warn("upload_attachment_bad_request", map[string]any{
+			"service":        data.TransactionService,
+			"request_id":     requestID,
+			"transaction_id": ID,
+			"error":          err.Error(),
+		})
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":     false,
 			"statusCode": 400,
-			"message":    err.Error(),
+			"status":     false,
+			"message":    "invalid request body",
 		})
 		return
 	}
@@ -158,17 +222,24 @@ func (transactionHandler *TransactionHandler) UploadAttachment(c *gin.Context) {
 
 	attachment, err := transactionHandler.transactionServ.UploadAttachment(ctx, ID, payload.Files)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		log.Error("upload_attachment_failed", map[string]any{
+			"service":        data.TransactionService,
+			"request_id":     requestID,
+			"transaction_id": ID,
+			"error":          err.Error(),
+		})
+		statusCode, message := mapServiceError(err)
+		c.JSON(statusCode, gin.H{
+			"statusCode": statusCode,
 			"status":     false,
-			"statusCode": 500,
-			"message":    err.Error(),
+			"message":    message,
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":     true,
 		"statusCode": 200,
+		"status":     true,
 		"message":    "Upload attachment success",
 		"data":       attachment,
 	})
@@ -176,32 +247,46 @@ func (transactionHandler *TransactionHandler) UploadAttachment(c *gin.Context) {
 
 func (transactionHandler *TransactionHandler) UpdateTransaction(c *gin.Context) {
 	ctx := c.Request.Context()
+	requestID, _ := c.Get(data.REQUEST_ID_LOCAL_KEY)
+
+	id := c.Param("id")
 
 	var transaction dto.TransactionsRequest
 	if err := c.ShouldBindJSON(&transaction); err != nil {
+		log.Warn("update_transaction_bad_request", map[string]any{
+			"service":        data.TransactionService,
+			"request_id":     requestID,
+			"transaction_id": id,
+			"error":          err.Error(),
+		})
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":     false,
 			"statusCode": 400,
-			"message":    err.Error(),
+			"status":     false,
+			"message":    "invalid request body",
 		})
 		return
 	}
 
-	id := c.Param("id")
-
 	transactionUpdated, err := transactionHandler.transactionServ.UpdateTransaction(ctx, id, transaction)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		log.Error("update_transaction_failed", map[string]any{
+			"service":        data.TransactionService,
+			"request_id":     requestID,
+			"transaction_id": id,
+			"error":          err.Error(),
+		})
+		statusCode, message := mapServiceError(err)
+		c.JSON(statusCode, gin.H{
+			"statusCode": statusCode,
 			"status":     false,
-			"statusCode": 400,
-			"message":    err.Error(),
+			"message":    message,
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":     true,
 		"statusCode": 200,
+		"status":     true,
 		"message":    "Update transaction data",
 		"data":       transactionUpdated,
 	})
@@ -209,23 +294,45 @@ func (transactionHandler *TransactionHandler) UpdateTransaction(c *gin.Context) 
 
 func (transactionHandler *TransactionHandler) DeleteTransaction(c *gin.Context) {
 	ctx := c.Request.Context()
+	requestID, _ := c.Get(data.REQUEST_ID_LOCAL_KEY)
 
 	id := c.Param("id")
 
 	transactionDeleted, err := transactionHandler.transactionServ.DeleteTransaction(ctx, id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		log.Error("delete_transaction_failed", map[string]any{
+			"service":        data.TransactionService,
+			"request_id":     requestID,
+			"transaction_id": id,
+			"error":          err.Error(),
+		})
+		statusCode, message := mapServiceError(err)
+		c.JSON(statusCode, gin.H{
+			"statusCode": statusCode,
 			"status":     false,
-			"statusCode": 400,
-			"message":    err.Error(),
+			"message":    message,
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":     true,
 		"statusCode": 200,
+		"status":     true,
 		"message":    "Delete transaction data",
 		"data":       transactionDeleted,
 	})
+}
+
+// mapServiceError menerjemahkan error dari service ke HTTP status + pesan aman untuk client
+func mapServiceError(err error) (int, string) {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "not found"):
+		return http.StatusNotFound, "resource not found"
+	case strings.Contains(msg, "invalid"),
+		strings.Contains(msg, "insufficient"):
+		return http.StatusBadRequest, "invalid request"
+	default:
+		return http.StatusInternalServerError, "internal server error"
+	}
 }

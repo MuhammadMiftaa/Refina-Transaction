@@ -2,6 +2,7 @@ package utils
 
 import (
 	"errors"
+	"time"
 
 	"refina-transaction/config/env"
 	"refina-transaction/internal/types/dto"
@@ -11,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func ConvertToResponseType(data interface{}) interface{} {
+func ConvertToResponseType(data any) any {
 	return dto.TransactionsResponse{
 		ID:              data.(model.Transactions).ID.String(),
 		WalletID:        data.(model.Transactions).WalletID.String(),
@@ -25,7 +26,7 @@ func ConvertToResponseType(data interface{}) interface{} {
 }
 
 func VerifyToken(jwtToken string) (dto.UserData, error) {
-	token, _ := jwt.Parse(jwtToken, func(t *jwt.Token) (interface{}, error) {
+	token, _ := jwt.Parse(jwtToken, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("parsing token error occured")
 		}
@@ -50,4 +51,8 @@ func ParseUUID(id string) (uuid.UUID, error) {
 		return uuid.UUID{}, err
 	}
 	return parsedID, nil
+}
+
+func Ms(d time.Duration) float64 {
+	return float64(d.Nanoseconds()) / 1e6
 }

@@ -10,7 +10,7 @@ import (
 )
 
 func AuthMiddleware() gin.HandlerFunc {
-	return gin.HandlerFunc(func(ctx *gin.Context) {
+	return func(ctx *gin.Context) {
 		jwt := ctx.GetHeader("Authorization")
 		if jwt == "" {
 			if ctx.Request.URL.Path != "/" {
@@ -53,5 +53,5 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		ctx.Set("user_data", userData)
 		ctx.Next()
-	})
+	}
 }

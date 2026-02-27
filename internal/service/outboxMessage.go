@@ -38,16 +38,13 @@ func (p *OutboxPublisher) Start(ctx context.Context) {
 	ticker := time.NewTicker(p.interval)
 	defer ticker.Stop()
 
-	log.Log.Info("Outbox publisher started")
-
 	for {
 		select {
 		case <-ctx.Done():
-			log.Log.Info("Outbox publisher stopped")
 			return
 		case <-ticker.C:
 			if err := p.publishPendingMessages(ctx); err != nil {
-				log.Log.Errorf("Error publishing outbox messages: %v", err)
+				log.Error("Error publishing outbox messages", map[string]any{"service": data.OutboxService, "error": err})
 			}
 		}
 	}
@@ -63,15 +60,13 @@ func (p *OutboxPublisher) publishPendingMessages(ctx context.Context) error {
 		return nil
 	}
 
-	log.Log.Infof("Publishing %d outbox messages", len(messages))
-
 	for _, msg := range messages {
 		if err := p.publishMessage(ctx, msg); err != nil {
-			log.Log.Errorf("Failed to publish message %d: %v", msg.ID, err)
+			log.Error("Failed to publish message", map[string]any{"service": data.OutboxService, "document_id": msg.ID, "event_type": msg.EventType, "error": err})
 
 			// Increment retry count
 			if err := p.outboxRepo.IncrementRetries(ctx, msg.ID); err != nil {
-				log.Log.Errorf("Failed to increment retries for message %d: %v", msg.ID, err)
+				log.Error("Failed to increment retries for message", map[string]any{"service": data.OutboxService, "document_id": msg.ID, "event_type": msg.EventType, "error": err})
 			}
 
 			continue
@@ -79,11 +74,11 @@ func (p *OutboxPublisher) publishPendingMessages(ctx context.Context) error {
 
 		// Mark as published
 		if err := p.outboxRepo.MarkAsPublished(ctx, msg.ID); err != nil {
-			log.Log.Errorf("Failed to mark message %d as published: %v", msg.ID, err)
+			log.Error("Failed to mark message as published", map[string]any{"service": data.OutboxService, "document_id": msg.ID, "event_type": msg.EventType, "error": err})
 			continue
 		}
 
-		log.Log.Infof("Successfully published message %d (event: %s)", msg.ID, msg.EventType)
+		log.Info("Successfully published message", map[string]any{"service": data.OutboxService, "document_id": msg.ID, "event_type": msg.EventType})
 	}
 
 	return nil
@@ -133,16 +128,13 @@ func (p *OutboxPublisher) StartCleanupJob(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
-	log.Log.Info("Outbox cleanup job started")
-
 	for {
 		select {
 		case <-ctx.Done():
-			log.Log.Info("Outbox cleanup job stopped")
 			return
 		case <-ticker.C:
 			if err := p.cleanupOldMessages(ctx); err != nil {
-				log.Log.Errorf("Error cleaning up old messages: %v", err)
+				log.Error("Error cleaning up old messages", map[string]any{"service": data.OutboxService, "error": err})
 			}
 		}
 	}
@@ -150,7 +142,5 @@ func (p *OutboxPublisher) StartCleanupJob(ctx context.Context) {
 
 func (p *OutboxPublisher) cleanupOldMessages(ctx context.Context) error {
 	// This would need a method in the repository
-	// For now, just log
-	log.Log.Info("Cleanup job executed")
 	return nil
 }

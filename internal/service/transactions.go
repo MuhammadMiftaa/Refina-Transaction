@@ -3,10 +3,8 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
-	"refina-transaction/config/log"
 	"refina-transaction/config/miniofs"
 	"refina-transaction/interface/grpc/client"
 	"refina-transaction/internal/repository"
@@ -54,7 +52,7 @@ func NewTransactionService(txManager repository.TxManager, transactionRepo repos
 func (transaction_serv *transactionsService) GetAllTransactions(ctx context.Context) ([]dto.TransactionsResponse, error) {
 	transactions, err := transaction_serv.transactionRepo.GetAllTransactions(ctx, nil)
 	if err != nil {
-		return nil, errors.New("failed to get transactions")
+		return nil, fmt.Errorf("get all transactions: %w", err)
 	}
 
 	transactionResponses := make([]dto.TransactionsResponse, 0, len(transactions))
@@ -69,14 +67,14 @@ func (transaction_serv *transactionsService) GetAllTransactions(ctx context.Cont
 func (transaction_serv *transactionsService) GetTransactionByID(ctx context.Context, id string) (dto.TransactionsResponse, error) {
 	transaction, err := transaction_serv.transactionRepo.GetTransactionByID(ctx, nil, id)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("transaction not found")
+		return dto.TransactionsResponse{}, fmt.Errorf("transaction not found [id=%s]: %w", id, err)
 	}
 
 	transactionResponse := helper.ConvertToResponseType(transaction).(dto.TransactionsResponse)
 
 	attachments, err := transaction_serv.attachmentRepo.GetAttachmentsByTransactionID(ctx, nil, transaction.ID.String())
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to get attachments")
+		return dto.TransactionsResponse{}, fmt.Errorf("get attachments [transaction_id=%s]: %w", id, err)
 	}
 
 	if len(attachments) > 0 {
@@ -102,7 +100,7 @@ func (transaction_serv *transactionsService) GetTransactionByID(ctx context.Cont
 func (transaction_serv *transactionsService) GetTransactionsByWalletIDs(ctx context.Context, ids []string) ([]dto.TransactionsResponse, error) {
 	transactions, err := transaction_serv.transactionRepo.GetTransactionsByWalletIDs(ctx, nil, ids)
 	if err != nil {
-		return nil, errors.New("failed to get transactions")
+		return nil, fmt.Errorf("get transactions by wallet ids: %w", err)
 	}
 
 	transactionResponses := make([]dto.TransactionsResponse, 0, len(transactions))
@@ -117,7 +115,7 @@ func (transaction_serv *transactionsService) GetTransactionsByWalletIDs(ctx cont
 func (transaction_serv *transactionsService) CreateTransaction(ctx context.Context, transaction dto.TransactionsRequest) (dto.TransactionsResponse, error) {
 	tx, err := transaction_serv.txManager.Begin(ctx)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to create transaction")
+		return dto.TransactionsResponse{}, fmt.Errorf("create transaction: begin transaction: %w", err)
 	}
 
 	defer tx.Rollback()
@@ -125,17 +123,17 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 	// Check if wallet and category exist
 	wallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transaction.WalletID)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("wallet not found")
+		return dto.TransactionsResponse{}, fmt.Errorf("wallet not found [id=%s]: %w", transaction.WalletID, err)
 	}
 
 	category, err := transaction_serv.categoryRepo.GetCategoryByID(ctx, tx, transaction.CategoryID)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("category not found")
+		return dto.TransactionsResponse{}, fmt.Errorf("category not found [id=%s]: %w", transaction.CategoryID, err)
 	}
 
 	// Check if wallet has sufficient balance
 	if wallet.GetBalance() < transaction.Amount {
-		return dto.TransactionsResponse{}, errors.New("insufficient wallet balance")
+		return dto.TransactionsResponse{}, fmt.Errorf("insufficient wallet balance [wallet_id=%s]", transaction.WalletID)
 	}
 
 	// Check if transaction type is valid and update wallet balance
@@ -145,24 +143,24 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 	case "income":
 		wallet.Balance += transaction.Amount
 	default:
-		return dto.TransactionsResponse{}, errors.New("invalid transaction type")
+		return dto.TransactionsResponse{}, fmt.Errorf("invalid transaction type [type=%s]", category.Type)
 	}
 
 	// Parse ID from JSON to valid UUID
 	CategoryID, err := helper.ParseUUID(transaction.CategoryID)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("invalid category id")
+		return dto.TransactionsResponse{}, fmt.Errorf("invalid category id [id=%s]: %w", transaction.CategoryID, err)
 	}
 
 	WalletID, err := helper.ParseUUID(transaction.WalletID)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("invalid wallet id")
+		return dto.TransactionsResponse{}, fmt.Errorf("invalid wallet id [id=%s]: %w", transaction.WalletID, err)
 	}
 
 	// Update wallet balance
 	_, err = transaction_serv.walletClient.UpdateWallet(ctx, wallet)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to update wallet")
+		return dto.TransactionsResponse{}, fmt.Errorf("update wallet balance [wallet_id=%s]: %w", transaction.WalletID, err)
 	}
 
 	// Create transaction
@@ -175,7 +173,7 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 		Category:        category,
 	})
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to create transaction")
+		return dto.TransactionsResponse{}, fmt.Errorf("create transaction: insert to db: %w", err)
 	}
 
 	// ? If attachments exist, upload attachments
@@ -183,7 +181,7 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 		for _, attachment := range transaction.Attachments {
 			// * Create new attachment
 			if len(attachment.Files) == 0 {
-				return dto.TransactionsResponse{}, errors.New("no files to upload")
+				return dto.TransactionsResponse{}, fmt.Errorf("no files to upload")
 			}
 
 			if _, err := transaction_serv.UploadAttachment(ctx, transactionNew.ID.String(), attachment.Files); err != nil {
@@ -196,7 +194,7 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 
 	payload, err := json.Marshal(transactionResponse)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to marshal transaction response")
+		return dto.TransactionsResponse{}, fmt.Errorf("create transaction: marshal transaction response: %w", err)
 	}
 
 	outboxMsg := &model.OutboxMessage{
@@ -213,7 +211,7 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 
 	// Commit transaksi jika semua sukses
 	if err := tx.Commit(); err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to commit transaction")
+		return dto.TransactionsResponse{}, fmt.Errorf("create transaction: commit: %w", err)
 	}
 
 	return transactionResponse, nil
@@ -222,7 +220,7 @@ func (transaction_serv *transactionsService) CreateTransaction(ctx context.Conte
 func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, transaction dto.FundTransferRequest) (dto.FundTransferResponse, error) {
 	tx, err := transaction_serv.txManager.Begin(ctx)
 	if err != nil {
-		return dto.FundTransferResponse{}, errors.New("failed to create transaction")
+		return dto.FundTransferResponse{}, fmt.Errorf("fund transfer: begin transaction: %w", err)
 	}
 
 	defer tx.Rollback()
@@ -230,22 +228,22 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 	// Check if wallet and category exist
 	fromWallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transaction.FromWalletID)
 	if err != nil {
-		return dto.FundTransferResponse{}, errors.New("source wallet not found")
+		return dto.FundTransferResponse{}, fmt.Errorf("source wallet not found [id=%s]: %w", transaction.FromWalletID, err)
 	}
 
 	toWallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transaction.ToWalletID)
 	if err != nil {
-		return dto.FundTransferResponse{}, errors.New("destination wallet not found")
+		return dto.FundTransferResponse{}, fmt.Errorf("destination wallet not found [id=%s]: %w", transaction.ToWalletID, err)
 	}
 
 	// Check if wallet has sufficient balance
 	if fromWallet.GetBalance() < (transaction.Amount + transaction.AdminFee) {
-		return dto.FundTransferResponse{}, errors.New("insufficient wallet balance")
+		return dto.FundTransferResponse{}, fmt.Errorf("insufficient wallet balance [wallet_id=%s]", transaction.FromWalletID)
 	}
 
 	// Check if source and destination wallets are the same
 	if fromWallet.GetId() == toWallet.GetId() {
-		return dto.FundTransferResponse{}, errors.New("source wallet and destination wallet cannot be the same")
+		return dto.FundTransferResponse{}, fmt.Errorf("source wallet and destination wallet cannot be the same [wallet_id=%s]", transaction.FromWalletID)
 	}
 
 	fromWallet.Balance -= (transaction.Amount + transaction.AdminFee)
@@ -254,31 +252,31 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 	// Parse ID from JSON to valid UUID
 	FromWalletID, err := helper.ParseUUID(transaction.FromWalletID)
 	if err != nil {
-		return dto.FundTransferResponse{}, errors.New("invalid from wallet id")
+		return dto.FundTransferResponse{}, fmt.Errorf("invalid from wallet id [id=%s]: %w", transaction.FromWalletID, err)
 	}
 
 	ToWalletID, err := helper.ParseUUID(transaction.ToWalletID)
 	if err != nil {
-		return dto.FundTransferResponse{}, errors.New("invalid to wallet id")
+		return dto.FundTransferResponse{}, fmt.Errorf("invalid to wallet id [id=%s]: %w", transaction.ToWalletID, err)
 	}
 
 	// Parse CategoryID from JSON to valid UUID
 	FromCategoryID, err := helper.ParseUUID(transaction.CashOutCategoryID)
 	if err != nil {
-		return dto.FundTransferResponse{}, errors.New("invalid from category id")
+		return dto.FundTransferResponse{}, fmt.Errorf("invalid from category id [id=%s]: %w", transaction.CashOutCategoryID, err)
 	}
 
 	ToCategoryID, err := helper.ParseUUID(transaction.CashInCategoryID)
 	if err != nil {
-		return dto.FundTransferResponse{}, errors.New("invalid to category id")
+		return dto.FundTransferResponse{}, fmt.Errorf("invalid to category id [id=%s]: %w", transaction.CashInCategoryID, err)
 	}
 
 	// Update wallet balance
 	if _, err = transaction_serv.walletClient.UpdateWallet(ctx, fromWallet); err != nil {
-		return dto.FundTransferResponse{}, errors.New("failed to update from wallet")
+		return dto.FundTransferResponse{}, fmt.Errorf("update from wallet balance: %w", err)
 	}
 	if _, err = transaction_serv.walletClient.UpdateWallet(ctx, toWallet); err != nil {
-		return dto.FundTransferResponse{}, errors.New("failed to update to wallet")
+		return dto.FundTransferResponse{}, fmt.Errorf("update to wallet balance: %w", err)
 	}
 
 	transactionNewFrom, err := transaction_serv.transactionRepo.CreateTransaction(ctx, tx, model.Transactions{
@@ -289,7 +287,7 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 		Description:     "fund transfer to " + toWallet.GetName() + "(Cash Out)",
 	})
 	if err != nil {
-		return dto.FundTransferResponse{}, errors.New("failed to create from transaction")
+		return dto.FundTransferResponse{}, fmt.Errorf("create from transaction: insert to db: %w", err)
 	}
 
 	transactionNewTo, err := transaction_serv.transactionRepo.CreateTransaction(ctx, tx, model.Transactions{
@@ -300,17 +298,17 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 		Description:     "fund transfer from " + fromWallet.GetName() + "(Cash In)",
 	})
 	if err != nil {
-		return dto.FundTransferResponse{}, errors.New("failed to create to transaction")
+		return dto.FundTransferResponse{}, fmt.Errorf("create to transaction: insert to db: %w", err)
 	}
 
 	transactionNewFromPayload, err := json.Marshal(helper.ConvertToResponseType(transactionNewFrom).(dto.TransactionsResponse))
 	if err != nil {
-		return dto.FundTransferResponse{}, errors.New("failed to marshal transaction response")
+		return dto.FundTransferResponse{}, fmt.Errorf("fund transfer: marshal from transaction response: %w", err)
 	}
 
 	transactionNewToPayload, err := json.Marshal(helper.ConvertToResponseType(transactionNewTo).(dto.TransactionsResponse))
 	if err != nil {
-		return dto.FundTransferResponse{}, errors.New("failed to marshal transaction response")
+		return dto.FundTransferResponse{}, fmt.Errorf("fund transfer: marshal to transaction response: %w", err)
 	}
 
 	if err := transaction_serv.outboxRepository.Create(ctx, tx, &model.OutboxMessage{
@@ -334,7 +332,7 @@ func (transaction_serv *transactionsService) FundTransfer(ctx context.Context, t
 	}
 
 	if err := tx.Commit(); err != nil {
-		return dto.FundTransferResponse{}, errors.New("failed to commit transaction")
+		return dto.FundTransferResponse{}, fmt.Errorf("fund transfer: commit: %w", err)
 	}
 
 	response := dto.FundTransferResponse{
@@ -354,18 +352,15 @@ func (transaction_serv *transactionsService) UploadAttachment(ctx context.Contex
 	var attachmentResponses []dto.AttachmentsResponse
 
 	if transactionID == "" {
-		log.Error("transaction ID is required")
-		return nil, errors.New("transaction ID is required")
+		return nil, fmt.Errorf("transaction ID is required")
 	}
 	if len(files) == 0 {
-		log.Error("no files to upload")
-		return nil, errors.New("no files to upload")
+		return nil, fmt.Errorf("no files to upload")
 	}
 
 	for idx, file := range files {
 		if file == "" {
-			log.Error("file is empty")
-			return nil, errors.New("file is empty")
+			return nil, fmt.Errorf("file is empty [index=%d]", idx)
 		}
 
 		ctx := context.Background()
@@ -377,15 +372,13 @@ func (transaction_serv *transactionsService) UploadAttachment(ctx context.Contex
 		}
 		res, err := transaction_serv.minio.UploadFile(ctx, fileReq)
 		if err != nil {
-			log.Error(fmt.Sprintf("failed to upload file %d: %v", idx+1, err))
-			return nil, errors.New("failed to upload file")
+			return nil, fmt.Errorf("upload file %d [transaction_id=%s]: %w", idx+1, transactionID, err)
 		}
 
 		// Save attachment to database
 		TransactionUUID, err := uuid.Parse(transactionID)
 		if err != nil {
-			log.Error(fmt.Sprintf("invalid transaction ID %s: %v", transactionID, err))
-			return nil, errors.New("invalid transaction id")
+			return nil, fmt.Errorf("invalid transaction id [id=%s]: %w", transactionID, err)
 		}
 
 		attachment, err := transaction_serv.attachmentRepo.CreateAttachment(ctx, nil, model.Attachments{
@@ -395,8 +388,7 @@ func (transaction_serv *transactionsService) UploadAttachment(ctx context.Contex
 			Format:        res.Ext,
 		})
 		if err != nil {
-			log.Error(fmt.Sprintf("failed to create attachment for transaction %s: %v", transactionID, err))
-			return nil, errors.New("failed to create attachment")
+			return nil, fmt.Errorf("create attachment [transaction_id=%s]: %w", transactionID, err)
 		}
 
 		attachmentResponse := dto.AttachmentsResponse{
@@ -416,7 +408,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 	// ! Begin a new transaction
 	tx, err := transaction_serv.txManager.Begin(ctx)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to create transaction")
+		return dto.TransactionsResponse{}, fmt.Errorf("update transaction: begin transaction: %w", err)
 	}
 
 	// ! Defer rollback if there is an error
@@ -425,20 +417,20 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 	// ? Check if transaction exist
 	transactionExist, err := transaction_serv.transactionRepo.GetTransactionByID(ctx, tx, id)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("transaction not found")
+		return dto.TransactionsResponse{}, fmt.Errorf("transaction not found [id=%s]: %w", id, err)
 	}
 
 	// ? If category ID is different, update category
 	if transaction.CategoryID != transactionExist.CategoryID.String() {
 		CategoryID, err := helper.ParseUUID(transaction.CategoryID)
 		if err != nil {
-			return dto.TransactionsResponse{}, errors.New("invalid category id")
+			return dto.TransactionsResponse{}, fmt.Errorf("invalid category id [id=%s]: %w", transaction.CategoryID, err)
 		}
 
 		// * Check if category exist
 		_, err = transaction_serv.categoryRepo.GetCategoryByID(ctx, tx, transaction.CategoryID)
 		if err != nil {
-			return dto.TransactionsResponse{}, errors.New("category not found")
+			return dto.TransactionsResponse{}, fmt.Errorf("category not found [id=%s]: %w", transaction.CategoryID, err)
 		}
 
 		transactionExist.CategoryID = CategoryID
@@ -449,7 +441,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 		// *  Check if wallet exist
 		oldWallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transactionExist.WalletID.String())
 		if err != nil {
-			return dto.TransactionsResponse{}, errors.New("wallet not found")
+			return dto.TransactionsResponse{}, fmt.Errorf("wallet not found [id=%s]: %w", transactionExist.WalletID.String(), err)
 		}
 
 		// *  Update wallet balance
@@ -459,17 +451,17 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 		case "income":
 			oldWallet.Balance -= transactionExist.Amount
 		default:
-			return dto.TransactionsResponse{}, errors.New("invalid transaction type")
+			return dto.TransactionsResponse{}, fmt.Errorf("invalid transaction type [type=%s]", transactionExist.Category.Type)
 		}
 
 		if _, err = transaction_serv.walletClient.UpdateWallet(ctx, oldWallet); err != nil {
-			return dto.TransactionsResponse{}, errors.New("failed to update wallet")
+			return dto.TransactionsResponse{}, fmt.Errorf("update old wallet balance: %w", err)
 		}
 
 		// *  Check if new wallet exist
 		newWallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transaction.WalletID)
 		if err != nil {
-			return dto.TransactionsResponse{}, errors.New("new wallet not found")
+			return dto.TransactionsResponse{}, fmt.Errorf("new wallet not found [id=%s]: %w", transaction.WalletID, err)
 		}
 
 		// *  Update wallet balance
@@ -479,17 +471,17 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 		case "income":
 			newWallet.Balance += transaction.Amount
 		default:
-			return dto.TransactionsResponse{}, errors.New("invalid transaction type")
+			return dto.TransactionsResponse{}, fmt.Errorf("invalid transaction type [type=%s]", transactionExist.Category.Type)
 		}
 
 		if _, err = transaction_serv.walletClient.UpdateWallet(ctx, newWallet); err != nil {
-			return dto.TransactionsResponse{}, errors.New("failed to update new wallet")
+			return dto.TransactionsResponse{}, fmt.Errorf("update new wallet balance: %w", err)
 		}
 
 		// *  Parse ID from JSON to valid UUID
 		WalletID, err := helper.ParseUUID(transaction.WalletID)
 		if err != nil {
-			return dto.TransactionsResponse{}, errors.New("invalid wallet id")
+			return dto.TransactionsResponse{}, fmt.Errorf("invalid wallet id [id=%s]: %w", transaction.WalletID, err)
 		}
 		transactionExist.WalletID = WalletID
 	}
@@ -499,7 +491,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 		// *  Update wallet balance
 		oldWallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transactionExist.WalletID.String())
 		if err != nil {
-			return dto.TransactionsResponse{}, errors.New("wallet not found")
+			return dto.TransactionsResponse{}, fmt.Errorf("wallet not found [id=%s]: %w", transactionExist.WalletID.String(), err)
 		}
 
 		// *  Update wallet balance
@@ -511,11 +503,11 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 			oldWallet.Balance -= transactionExist.Amount
 			oldWallet.Balance += transaction.Amount
 		default:
-			return dto.TransactionsResponse{}, errors.New("invalid transaction type")
+			return dto.TransactionsResponse{}, fmt.Errorf("invalid transaction type [type=%s]", transactionExist.Category.Type)
 		}
 
 		if _, err = transaction_serv.walletClient.UpdateWallet(ctx, oldWallet); err != nil {
-			return dto.TransactionsResponse{}, errors.New("failed to update wallet")
+			return dto.TransactionsResponse{}, fmt.Errorf("update wallet balance: %w", err)
 		}
 
 		// *  Update transaction amount
@@ -535,7 +527,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 	// ? Update transaction
 	transactionUpdated, err := transaction_serv.transactionRepo.UpdateTransaction(ctx, tx, transactionExist)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to update transaction")
+		return dto.TransactionsResponse{}, fmt.Errorf("update transaction [id=%s]: update in db: %w", id, err)
 	}
 
 	// ? If attachments exist, update attachments
@@ -545,7 +537,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 			case "create":
 				// * Create new attachment
 				if len(attachment.Files) == 0 {
-					return dto.TransactionsResponse{}, errors.New("no files to upload")
+					return dto.TransactionsResponse{}, fmt.Errorf("no files to upload")
 				}
 
 				if _, err := transaction_serv.UploadAttachment(ctx, transactionUpdated.ID.String(), attachment.Files); err != nil {
@@ -555,7 +547,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 			case "delete":
 				// * Delete attachment
 				if len(attachment.Files) == 0 {
-					return dto.TransactionsResponse{}, errors.New("no files to delete")
+					return dto.TransactionsResponse{}, fmt.Errorf("no files to delete")
 				}
 
 				for _, ID := range attachment.Files {
@@ -577,7 +569,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 				}
 
 			default:
-				return dto.TransactionsResponse{}, errors.New("invalid attachment status")
+				return dto.TransactionsResponse{}, fmt.Errorf("invalid attachment status [status=%s]", attachment.Status)
 			}
 		}
 	}
@@ -586,7 +578,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 
 	payload, err := json.Marshal(transactionResponse)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to marshal transaction response")
+		return dto.TransactionsResponse{}, fmt.Errorf("update transaction: marshal transaction response: %w", err)
 	}
 
 	outboxMsg := &model.OutboxMessage{
@@ -603,7 +595,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 
 	// ! Commit transaction if all operations are successful
 	if err = tx.Commit(); err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to commit transaction")
+		return dto.TransactionsResponse{}, fmt.Errorf("update transaction: commit: %w", err)
 	}
 
 	return transactionResponse, nil
@@ -612,7 +604,7 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 func (transaction_serv *transactionsService) DeleteTransaction(ctx context.Context, id string) (dto.TransactionsResponse, error) {
 	tx, err := transaction_serv.txManager.Begin(ctx)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to create transaction")
+		return dto.TransactionsResponse{}, fmt.Errorf("delete transaction: begin transaction: %w", err)
 	}
 
 	defer tx.Rollback()
@@ -620,13 +612,13 @@ func (transaction_serv *transactionsService) DeleteTransaction(ctx context.Conte
 	// Check if transaction exist
 	transactionExist, err := transaction_serv.transactionRepo.GetTransactionByID(ctx, tx, id)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("transaction not found")
+		return dto.TransactionsResponse{}, fmt.Errorf("transaction not found [id=%s]: %w", id, err)
 	}
 
 	// Get wallet to update balance
 	wallet, err := transaction_serv.walletClient.GetWalletByID(ctx, transactionExist.WalletID.String())
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("wallet not found")
+		return dto.TransactionsResponse{}, fmt.Errorf("wallet not found [id=%s]: %w", transactionExist.WalletID.String(), err)
 	}
 
 	// Update wallet balance
@@ -640,27 +632,27 @@ func (transaction_serv *transactionsService) DeleteTransaction(ctx context.Conte
 		} else if transactionExist.Category.Name == "Cash In" {
 			wallet.Balance -= transactionExist.Amount
 		} else {
-			return dto.TransactionsResponse{}, errors.New("invalid transaction type")
+			return dto.TransactionsResponse{}, fmt.Errorf("invalid transaction type [type=%s]", transactionExist.Category.Type)
 		}
 	}
 
 	// Update wallet balance
 	_, err = transaction_serv.walletClient.UpdateWallet(ctx, wallet)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to update wallet")
+		return dto.TransactionsResponse{}, fmt.Errorf("update wallet balance: %w", err)
 	}
 
 	// Delete transaction
 	transactionDeleted, err := transaction_serv.transactionRepo.DeleteTransaction(ctx, tx, transactionExist)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to delete transaction")
+		return dto.TransactionsResponse{}, fmt.Errorf("delete transaction [id=%s]: delete from db: %w", id, err)
 	}
 
 	transactionResponse := helper.ConvertToResponseType(transactionDeleted).(dto.TransactionsResponse)
 
 	payload, err := json.Marshal(transactionResponse)
 	if err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to marshal transaction response")
+		return dto.TransactionsResponse{}, fmt.Errorf("delete transaction: marshal transaction response: %w", err)
 	}
 
 	outboxMsg := &model.OutboxMessage{
@@ -677,7 +669,7 @@ func (transaction_serv *transactionsService) DeleteTransaction(ctx context.Conte
 
 	// Commit transaksi jika semua sukses
 	if err := tx.Commit(); err != nil {
-		return dto.TransactionsResponse{}, errors.New("failed to commit transaction")
+		return dto.TransactionsResponse{}, fmt.Errorf("delete transaction: commit: %w", err)
 	}
 
 	return transactionResponse, nil

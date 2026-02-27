@@ -14,9 +14,13 @@ import (
 )
 
 func SetupHTTPServer(dbInstance db.DatabaseClient, minioInstance *miniofs.MinIOManager, queueInstance queue.RabbitMQClient) *http.Server {
-	router := gin.Default()
+	router := gin.New()
 
-	router.Use(middleware.CORSMiddleware(), middleware.GinMiddleware())
+	router.Use(
+		middleware.CORSMiddleware(),
+		middleware.RequestIDMiddleware(),
+		middleware.GinMiddleware(),
+	)
 
 	router.GET("test", func(c *gin.Context) {
 		c.JSON(200, gin.H{

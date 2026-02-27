@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"refina-transaction/config/log"
+	"refina-transaction/internal/types/dto"
+	"refina-transaction/internal/utils/data"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,19 +39,25 @@ func httpRequest(c *gin.Context, latency time.Duration, statusCode int) {
 	}
 
 	// Format request size
-	requestSize := c.Request.ContentLength
-	if requestSize < 0 {
-		requestSize = 0
-	}
+	requestSize := max(c.Request.ContentLength, 0)
 
 	// Response size (approximate, karena gin tidak menyediakan exact response size)
-	responseSize := c.Writer.Size()
-	if responseSize < 0 {
-		responseSize = 0
+	responseSize := max(c.Writer.Size(), 0)
+
+	// Baca request_id yang sudah disimpan oleh RequestIDMiddleware
+	requestID, _ := c.Get(data.REQUEST_ID_LOCAL_KEY)
+
+	// Baca user_id jika sudah login (disimpan oleh AuthMiddleware)
+	userID := ""
+	if userData, exists := c.Get("user_data"); exists {
+		if u, ok := userData.(dto.UserData); ok {
+			userID = u.ID
+		}
 	}
 
 	// Fields untuk structured logging
-	fields := map[string]interface{}{
+	fields := map[string]any{
+		"request_id":    requestID,
 		"method":        c.Request.Method,
 		"uri":           c.Request.RequestURI,
 		"status":        statusCode,
@@ -60,6 +68,11 @@ func httpRequest(c *gin.Context, latency time.Duration, statusCode int) {
 		"request_size":  requestSize,
 		"response_size": responseSize,
 		"protocol":      c.Request.Proto,
+	}
+
+	// Tambahkan user_id jika ada — berguna untuk audit trail
+	if userID != "" {
+		fields["user_id"] = userID
 	}
 
 	// Format message dalam style Apache Combined Log Format
