@@ -25,7 +25,7 @@ func (categoryHandler *CategoryHandler) GetAllCategories(c *gin.Context) {
 
 	categories, err := categoryHandler.categoryServ.GetAllCategories(ctx)
 	if err != nil {
-		log.Error("get_all_categories_failed", map[string]any{
+		log.Error(data.LogGetAllCategoriesFailed, map[string]any{
 			"service":    data.CategoryService,
 			"request_id": requestID,
 			"error":      err.Error(),
@@ -55,7 +55,7 @@ func (categoryHandler *CategoryHandler) GetCategoryByID(c *gin.Context) {
 
 	category, err := categoryHandler.categoryServ.GetCategoryByID(ctx, id)
 	if err != nil {
-		log.Error("get_category_by_id_failed", map[string]any{
+		log.Error(data.LogGetCategoryByIDFailed, map[string]any{
 			"service":     data.CategoryService,
 			"request_id":  requestID,
 			"category_id": id,
@@ -86,7 +86,7 @@ func (categoryHandler *CategoryHandler) GetCategoriesByType(c *gin.Context) {
 
 	categories, err := categoryHandler.categoryServ.GetCategoriesByType(ctx, typeCategory)
 	if err != nil {
-		log.Error("get_categories_by_type_failed", map[string]any{
+		log.Error(data.LogGetCategoriesByTypeFailed, map[string]any{
 			"service":       data.CategoryService,
 			"request_id":    requestID,
 			"category_type": typeCategory,
@@ -115,7 +115,7 @@ func (categoryHandler *CategoryHandler) CreateCategory(c *gin.Context) {
 
 	var categoryRequest dto.CategoriesRequest
 	if err := c.ShouldBindJSON(&categoryRequest); err != nil {
-		log.Warn("create_category_bad_request", map[string]any{
+		log.Warn(data.LogCreateCategoryBadRequest, map[string]any{
 			"service":    data.CategoryService,
 			"request_id": requestID,
 			"error":      err.Error(),
@@ -130,7 +130,7 @@ func (categoryHandler *CategoryHandler) CreateCategory(c *gin.Context) {
 
 	category, err := categoryHandler.categoryServ.CreateCategory(ctx, categoryRequest)
 	if err != nil {
-		log.Error("create_category_failed", map[string]any{
+		log.Error(data.LogCreateCategoryFailed, map[string]any{
 			"service":    data.CategoryService,
 			"request_id": requestID,
 			"name":       categoryRequest.Name,
@@ -145,7 +145,7 @@ func (categoryHandler *CategoryHandler) CreateCategory(c *gin.Context) {
 		return
 	}
 
-	log.Info("category_created", map[string]any{
+	log.Info(data.LogCategoryCreated, map[string]any{
 		"service":    data.CategoryService,
 		"request_id": requestID,
 		"name":       categoryRequest.Name,
@@ -167,7 +167,7 @@ func (categoryHandler *CategoryHandler) UpdateCategory(c *gin.Context) {
 
 	var categoryRequest dto.CategoriesRequest
 	if err := c.ShouldBindJSON(&categoryRequest); err != nil {
-		log.Warn("update_category_bad_request", map[string]any{
+		log.Warn(data.LogUpdateCategoryBadRequest, map[string]any{
 			"service":     data.CategoryService,
 			"request_id":  requestID,
 			"category_id": id,
@@ -183,7 +183,7 @@ func (categoryHandler *CategoryHandler) UpdateCategory(c *gin.Context) {
 
 	category, err := categoryHandler.categoryServ.UpdateCategory(ctx, id, categoryRequest)
 	if err != nil {
-		log.Error("update_category_failed", map[string]any{
+		log.Error(data.LogUpdateCategoryFailed, map[string]any{
 			"service":     data.CategoryService,
 			"request_id":  requestID,
 			"category_id": id,
@@ -214,7 +214,7 @@ func (categoryHandler *CategoryHandler) DeleteCategory(c *gin.Context) {
 
 	category, err := categoryHandler.categoryServ.DeleteCategory(ctx, id)
 	if err != nil {
-		log.Error("delete_category_failed", map[string]any{
+		log.Error(data.LogDeleteCategoryFailed, map[string]any{
 			"service":     data.CategoryService,
 			"request_id":  requestID,
 			"category_id": id,

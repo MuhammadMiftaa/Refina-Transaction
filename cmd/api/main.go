@@ -40,7 +40,7 @@ func init() {
 
 	if len(missing) > 0 {
 		for _, envVar := range missing {
-			logger.Warn("Missing environment variable", map[string]any{"service": data.EnvService, "document_id": envVar})
+			logger.Warn(data.LogEnvVarMissing, map[string]any{"service": data.EnvService, "env_var": envVar})
 		}
 	}
 }
@@ -49,17 +49,17 @@ func main() {
 	// Setup Database Connection
 	startTime := time.Now()
 	dbInstance := db.GetInstance(env.Cfg.Database)
-	logger.Info("Setup Database Connection successfully", map[string]any{"service": data.DatabaseService, "duration": utils.Ms(time.Since(startTime))})
+	logger.Info(data.LogDBSetupSuccess, map[string]any{"service": data.DatabaseService, "duration": utils.Ms(time.Since(startTime))})
 
 	// Setup MinIO Connection
 	startTime = time.Now()
 	minioInstance := miniofs.SetupMinio(env.Cfg.Minio)
-	logger.Info("Setup MinIO Connection successfully", map[string]any{"service": data.MinioService, "duration": utils.Ms(time.Since(startTime))})
+	logger.Info(data.LogMinioSetupSuccess, map[string]any{"service": data.MinioService, "duration": utils.Ms(time.Since(startTime))})
 
 	// Setup RabbitMQ Connection
 	startTime = time.Now()
 	queueInstance := queue.GetInstance(env.Cfg.RabbitMQ)
-	logger.Info("Setup RabbitMQ Connection successfully", map[string]any{"service": data.RabbitmqService, "duration": utils.Ms(time.Since(startTime))})
+	logger.Info(data.LogRabbitmqSetupSuccess, map[string]any{"service": data.RabbitmqService, "duration": utils.Ms(time.Since(startTime))})
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -75,16 +75,16 @@ func main() {
 
 	// Start cleanup job (optional)
 	go outboxPublisher.StartCleanupJob(ctx)
-	logger.Info("Outbox Publisher started successfully", map[string]any{"service": data.OutboxService, "duration": utils.Ms(time.Since(startTime))})
+	logger.Info(data.LogOutboxPublisherStarted, map[string]any{"service": data.OutboxService, "duration": utils.Ms(time.Since(startTime))})
 
 	// Set up the gRPC client
 	startTime = time.Now()
 	grpcManager := client.GetManager()
 	err := grpcManager.SetupGRPCClient()
 	if err != nil {
-		logger.Fatal("Failed to set up gRPC client", map[string]any{"service": data.GRPCClientService, "error": err})
+		logger.Fatal(data.LogGRPCClientSetupFailed, map[string]any{"service": data.GRPCClientService, "error": err.Error()})
 	}
-	logger.Info("Setup gRPC client successfully", map[string]any{"service": data.GRPCClientService, "duration": utils.Ms(time.Since(startTime))})
+	logger.Info(data.LogGRPCClientSetupSuccess, map[string]any{"service": data.GRPCClientService, "duration": utils.Ms(time.Since(startTime))})
 
 	// Set up the HTTP server
 	startTime = time.Now()
@@ -92,32 +92,32 @@ func main() {
 	if httpServer != nil {
 		go func() {
 			if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				logger.Fatal("Failed to start HTTP server", map[string]any{"service": data.HTTPServerService, "error": err})
+				logger.Fatal(data.LogHTTPServerStartFailed, map[string]any{"service": data.HTTPServerService, "error": err.Error()})
 			}
 		}()
-		logger.Info("Starting HTTP server successfully.", map[string]any{"service": data.HTTPServerService, "port": env.Cfg.Server.HTTPPort, "duration": utils.Ms(time.Since(startTime))})
+		logger.Info(data.LogHTTPServerStarted, map[string]any{"service": data.HTTPServerService, "port": env.Cfg.Server.HTTPPort, "duration": utils.Ms(time.Since(startTime))})
 	}
 
 	// Set up the gRPC server
 	startTime = time.Now()
 	grpcServer, lis, err := grpcserver.SetupGRPCServer(dbInstance)
 	if err != nil {
-		logger.Fatal("Failed to set up gRPC server", map[string]any{"service": data.GRPCServerService, "error": err})
+		logger.Fatal(data.LogGRPCServerSetupFailed, map[string]any{"service": data.GRPCServerService, "error": err.Error()})
 	}
 	if grpcServer != nil && lis != nil {
 		go func() {
 			if err := grpcServer.Serve(*lis); err != nil {
-				logger.Fatal("Failed to serve gRPC", map[string]any{"service": data.GRPCServerService, "error": err})
+				logger.Fatal(data.LogGRPCServerServeFailed, map[string]any{"service": data.GRPCServerService, "error": err.Error()})
 			}
 		}()
-		logger.Info("Starting gRPC server successfully.", map[string]any{"service": data.GRPCServerService, "port": env.Cfg.Server.GRPCPort, "duration": utils.Ms(time.Since(startTime))})
+		logger.Info(data.LogGRPCServerStarted, map[string]any{"service": data.GRPCServerService, "port": env.Cfg.Server.GRPCPort, "duration": utils.Ms(time.Since(startTime))})
 	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("shutdown signal received, stopping services...", map[string]any{"service": data.MainService})
+	logger.Info(data.LogShutdownSignalReceived, map[string]any{"service": data.MainService})
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
@@ -128,7 +128,7 @@ func main() {
 	// Shutdown HTTP server
 	if httpServer != nil {
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			logger.Error("Failed to shutdown HTTP server", map[string]any{"service": data.HTTPServerService, "error": err})
+			logger.Error(data.LogHTTPServerShutdownFailed, map[string]any{"service": data.HTTPServerService, "error": err.Error()})
 			shutdownErrors["http_error"] = true
 		}
 	}
@@ -141,26 +141,26 @@ func main() {
 	if grpcServer != nil {
 		grpcServer.GracefulStop()
 		if err := grpcManager.Shutdown(shutdownCtx); err != nil {
-			logger.Error("Failed to shutdown gRPC clients", map[string]any{"service": data.GRPCClientService, "error": err})
+			logger.Error(data.LogGRPCClientShutdownFailed, map[string]any{"service": data.GRPCClientService, "error": err.Error()})
 			shutdownErrors["grpc_error"] = true
 		}
 	}
 
 	// Close RabbitMQ connection
 	if err := queueInstance.Close(); err != nil {
-		logger.Error("Failed to close RabbitMQ connection", map[string]any{"service": data.RabbitmqService, "error": err})
+		logger.Error(data.LogRabbitmqCloseFailed, map[string]any{"service": data.RabbitmqService, "error": err.Error()})
 		shutdownErrors["rabbitmq_error"] = true
 	}
 
 	// Close database connection
 	if err := dbInstance.Close(); err != nil {
-		logger.Error("Failed to close database connection", map[string]any{"service": data.DatabaseService, "error": err})
+		logger.Error(data.LogDBCloseFailed, map[string]any{"service": data.DatabaseService, "error": err.Error()})
 		shutdownErrors["database_error"] = true
 	}
 
 	if len(shutdownErrors) > 1 {
-		logger.Info("Servers stopped with errors", shutdownErrors)
+		logger.Info(data.LogShutdownCompletedWithErrors, shutdownErrors)
 	} else {
-		logger.Info("Servers gracefully stopped", map[string]any{"service": data.MainService, "duration": utils.Ms(time.Since(startTime))})
+		logger.Info(data.LogShutdownCompleted, map[string]any{"service": data.MainService, "duration": utils.Ms(time.Since(startTime))})
 	}
 }

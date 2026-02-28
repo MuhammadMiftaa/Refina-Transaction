@@ -26,7 +26,7 @@ func (transactionHandler *TransactionHandler) GetAllTransactions(c *gin.Context)
 
 	transactions, err := transactionHandler.transactionServ.GetAllTransactions(ctx)
 	if err != nil {
-		log.Error("get_all_transactions_failed", map[string]any{
+		log.Error(data.LogGetAllTransactionsFailed, map[string]any{
 			"service":    data.TransactionService,
 			"request_id": requestID,
 			"error":      err.Error(),
@@ -56,7 +56,7 @@ func (transactionHandler *TransactionHandler) GetTransactionByID(c *gin.Context)
 
 	transaction, err := transactionHandler.transactionServ.GetTransactionByID(ctx, id)
 	if err != nil {
-		log.Error("get_transaction_by_id_failed", map[string]any{
+		log.Error(data.LogGetTransactionByIDFailed, map[string]any{
 			"service":        data.TransactionService,
 			"request_id":     requestID,
 			"transaction_id": id,
@@ -85,7 +85,7 @@ func (transactionHandler *TransactionHandler) GetTransactionsByUserID(c *gin.Con
 
 	var ids []string
 	if err := c.BindJSON(&ids); err != nil {
-		log.Warn("get_transactions_by_user_id_bad_request", map[string]any{
+		log.Warn(data.LogGetTransactionsByUserIDBadRequest, map[string]any{
 			"service":    data.TransactionService,
 			"request_id": requestID,
 			"error":      err.Error(),
@@ -100,7 +100,7 @@ func (transactionHandler *TransactionHandler) GetTransactionsByUserID(c *gin.Con
 
 	transactions, err := transactionHandler.transactionServ.GetTransactionsByWalletIDs(ctx, ids)
 	if err != nil {
-		log.Error("get_transactions_by_wallet_ids_failed", map[string]any{
+		log.Error(data.LogGetTransactionsByWalletIDsFailed, map[string]any{
 			"service":    data.TransactionService,
 			"request_id": requestID,
 			"error":      err.Error(),
@@ -136,7 +136,7 @@ func (transactionHandler *TransactionHandler) CreateTransaction(c *gin.Context) 
 	if types != "fund_transfer" {
 		var transaction dto.TransactionsRequest
 		if err := c.ShouldBindJSON(&transaction); err != nil {
-			log.Warn("create_transaction_bad_request", map[string]any{
+			log.Warn(data.LogCreateTransactionBadRequest, map[string]any{
 				"service":    data.TransactionService,
 				"request_id": requestID,
 				"type":       types,
@@ -153,7 +153,7 @@ func (transactionHandler *TransactionHandler) CreateTransaction(c *gin.Context) 
 	} else {
 		var transaction dto.FundTransferRequest
 		if err := c.ShouldBindJSON(&transaction); err != nil {
-			log.Warn("create_fund_transfer_bad_request", map[string]any{
+			log.Warn(data.LogCreateFundTransferBadRequest, map[string]any{
 				"service":    data.TransactionService,
 				"request_id": requestID,
 				"error":      err.Error(),
@@ -169,7 +169,7 @@ func (transactionHandler *TransactionHandler) CreateTransaction(c *gin.Context) 
 	}
 
 	if err != nil {
-		log.Error("create_transaction_failed", map[string]any{
+		log.Error(data.LogCreateTransactionServiceFailed, map[string]any{
 			"service":    data.TransactionService,
 			"request_id": requestID,
 			"type":       types,
@@ -184,7 +184,7 @@ func (transactionHandler *TransactionHandler) CreateTransaction(c *gin.Context) 
 		return
 	}
 
-	log.Info("transaction_created", map[string]any{
+	log.Info(data.LogTransactionCreatedHTTP, map[string]any{
 		"service":    data.TransactionService,
 		"request_id": requestID,
 		"type":       types,
@@ -204,7 +204,7 @@ func (transactionHandler *TransactionHandler) UploadAttachment(c *gin.Context) {
 	ID := c.Param("id")
 	var payload dto.Attachments
 	if err := c.Bind(&payload); err != nil {
-		log.Warn("upload_attachment_bad_request", map[string]any{
+		log.Warn(data.LogUploadAttachmentBadRequest, map[string]any{
 			"service":        data.TransactionService,
 			"request_id":     requestID,
 			"transaction_id": ID,
@@ -222,7 +222,7 @@ func (transactionHandler *TransactionHandler) UploadAttachment(c *gin.Context) {
 
 	attachment, err := transactionHandler.transactionServ.UploadAttachment(ctx, ID, payload.Files)
 	if err != nil {
-		log.Error("upload_attachment_failed", map[string]any{
+		log.Error(data.LogUploadAttachmentFailed, map[string]any{
 			"service":        data.TransactionService,
 			"request_id":     requestID,
 			"transaction_id": ID,
@@ -253,7 +253,7 @@ func (transactionHandler *TransactionHandler) UpdateTransaction(c *gin.Context) 
 
 	var transaction dto.TransactionsRequest
 	if err := c.ShouldBindJSON(&transaction); err != nil {
-		log.Warn("update_transaction_bad_request", map[string]any{
+		log.Warn(data.LogUpdateTransactionBadRequest, map[string]any{
 			"service":        data.TransactionService,
 			"request_id":     requestID,
 			"transaction_id": id,
@@ -269,7 +269,7 @@ func (transactionHandler *TransactionHandler) UpdateTransaction(c *gin.Context) 
 
 	transactionUpdated, err := transactionHandler.transactionServ.UpdateTransaction(ctx, id, transaction)
 	if err != nil {
-		log.Error("update_transaction_failed", map[string]any{
+		log.Error(data.LogUpdateTransactionFailed, map[string]any{
 			"service":        data.TransactionService,
 			"request_id":     requestID,
 			"transaction_id": id,
@@ -300,7 +300,7 @@ func (transactionHandler *TransactionHandler) DeleteTransaction(c *gin.Context) 
 
 	transactionDeleted, err := transactionHandler.transactionServ.DeleteTransaction(ctx, id)
 	if err != nil {
-		log.Error("delete_transaction_failed", map[string]any{
+		log.Error(data.LogDeleteTransactionHTTPFailed, map[string]any{
 			"service":        data.TransactionService,
 			"request_id":     requestID,
 			"transaction_id": id,

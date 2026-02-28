@@ -12,6 +12,7 @@ import (
 
 	"refina-transaction/config/env"
 	"refina-transaction/config/log"
+	constant "refina-transaction/internal/utils/data"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -81,10 +82,8 @@ func SetupMinio(cfg env.Minio) *MinIOManager {
 		var err error
 		MinioClient, err = newMinIOManager(cfg)
 		if err != nil {
-			panic(fmt.Sprintf("Failed to initialize MinIO: %v", err))
+			log.Log.Fatalf("Failed to initialize MinIO: %v", err)
 		}
-
-		log.Info("MinIO client initialized successfully")
 	})
 
 	return MinioClient
@@ -234,7 +233,11 @@ func (m *MinIOManager) Validate(data []byte, contentType string, config *FileVal
 	if len(data) > 0 {
 		detectedType := getContentTypeFromData(data)
 		if detectedType != "application/octet-stream" && contentType != detectedType {
-			log.Warn("Content type mismatch detected")
+			log.Warn("content_type_mismatch", map[string]any{
+				"service":       constant.MinioService,
+				"declared_type": contentType,
+				"detected_type": detectedType,
+			})
 		}
 	}
 

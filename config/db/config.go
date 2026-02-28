@@ -72,8 +72,6 @@ func NewDatabaseClient(cfg env.Database, poolCfg ConnectionPoolConfig) (Database
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	log.Log.Info("Database connected successfully with connection pool")
-
 	return &databaseClient{
 		db: db,
 	}, nil
@@ -120,7 +118,6 @@ func (d *databaseClient) Close() error {
 		}
 
 		d.db = nil
-		log.Log.Info("Database connection closed successfully")
 	}
 
 	return nil
