@@ -2,7 +2,6 @@ package routes
 
 import (
 	"refina-transaction/interface/http/handler"
-	"refina-transaction/interface/http/middleware"
 	"refina-transaction/internal/repository"
 	"refina-transaction/internal/service"
 
@@ -18,7 +17,6 @@ func CategoryRoutes(version *gin.Engine, db *gorm.DB) {
 	categoryHandler := handler.NewCategoryHandler(categoryServ)
 
 	category := version.Group("/categories")
-	category.Use(middleware.AuthMiddleware())
 
 	category.GET("", categoryHandler.GetAllCategories)
 	category.GET("/:id", categoryHandler.GetCategoryByID)

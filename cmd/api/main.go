@@ -100,7 +100,7 @@ func main() {
 
 	// Set up the gRPC server
 	startTime = time.Now()
-	grpcServer, lis, err := grpcserver.SetupGRPCServer(dbInstance)
+	grpcServer, lis, err := grpcserver.SetupGRPCServer(dbInstance, minioInstance, queueInstance)
 	if err != nil {
 		logger.Fatal(data.LogGRPCServerSetupFailed, map[string]any{"service": data.GRPCServerService, "error": err.Error()})
 	}

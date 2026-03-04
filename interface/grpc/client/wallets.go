@@ -9,7 +9,7 @@ import (
 
 type WalletClient interface {
 	GetWalletByID(ctx context.Context, walletID string) (*wpb.Wallet, error)
-	UpdateWallet(ctx context.Context, req *wpb.Wallet) (*wpb.Wallet, error)
+	UpdateWallet(ctx context.Context, wallet *wpb.Wallet) (*wpb.Wallet, error)
 }
 
 type walletClientImpl struct {
@@ -33,9 +33,19 @@ func (w *walletClientImpl) GetWalletByID(ctx context.Context, walletID string) (
 	return w.client.GetWalletByID(ctx, req)
 }
 
-func (w *walletClientImpl) UpdateWallet(ctx context.Context, req *wpb.Wallet) (*wpb.Wallet, error) {
+// UpdateWallet converts the full Wallet to an UpdateWalletRequest (which now
+// includes balance) and sends it to the wallet-service.
+func (w *walletClientImpl) UpdateWallet(ctx context.Context, wallet *wpb.Wallet) (*wpb.Wallet, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+
+	req := &wpb.UpdateWalletRequest{
+		Id:           wallet.GetId(),
+		Name:         wallet.GetName(),
+		Number:       wallet.GetNumber(),
+		WalletTypeId: wallet.GetWalletTypeId(),
+		Balance:      wallet.GetBalance(),
+	}
 
 	return w.client.UpdateWallet(ctx, req)
 }

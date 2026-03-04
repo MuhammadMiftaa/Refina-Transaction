@@ -59,12 +59,32 @@ const (
 	LogShutdownCompleted           = "shutdown_completed"
 
 	// --- gRPC server handlers (transaction) ---
-	LogGetTransactionsFailed   = "get_transactions_failed"
-	LogCreateTransactionFailed = "create_transaction_failed"
-	LogTransactionCreated      = "transaction_created"
-	LogDeleteTransactionFailed = "delete_transaction_failed"
-	LogTransactionDeleted      = "transaction_deleted"
-	LogStreamSendFailed        = "stream_send_failed"
+	LogGetTransactionsFailed         = "get_transactions_failed"
+	LogGetUserTransactionsFailed     = "get_user_transactions_failed"
+	LogGetUserTransactionsSuccess    = "get_user_transactions_success"
+	LogGetTransactionByIDGRPCFailed  = "grpc_get_transaction_by_id_failed"
+	LogGetTransactionByIDGRPCSuccess = "grpc_get_transaction_by_id_success"
+	LogCreateTransactionFailed       = "create_transaction_failed"
+	LogTransactionCreated            = "transaction_created"
+	LogCreateFundTransferFailed      = "create_fund_transfer_failed"
+	LogFundTransferCreated           = "fund_transfer_created"
+	LogUpdateTransactionGRPCFailed   = "grpc_update_transaction_failed"
+	LogTransactionUpdated            = "transaction_updated"
+	LogDeleteTransactionFailed       = "delete_transaction_failed"
+	LogTransactionDeleted            = "transaction_deleted"
+	LogStreamSendFailed              = "stream_send_failed"
+
+	// --- gRPC server handlers (category) ---
+	LogGetCategoriesGRPCFailed  = "grpc_get_categories_failed"
+	LogGetCategoriesGRPCSuccess = "grpc_get_categories_success"
+
+	// --- gRPC server handlers (attachment) ---
+	LogGetAttachmentsByTxnIDFailed  = "grpc_get_attachments_by_txn_id_failed"
+	LogGetAttachmentsByTxnIDSuccess = "grpc_get_attachments_by_txn_id_success"
+	LogCreateAttachmentGRPCFailed   = "grpc_create_attachment_failed"
+	LogAttachmentCreated            = "grpc_attachment_created"
+	LogDeleteAttachmentGRPCFailed   = "grpc_delete_attachment_failed"
+	LogAttachmentDeleted            = "grpc_attachment_deleted"
 
 	// --- http handler (transaction) ---
 	LogGetAllTransactionsFailed          = "get_all_transactions_failed"

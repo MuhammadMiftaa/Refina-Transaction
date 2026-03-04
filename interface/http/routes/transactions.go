@@ -4,7 +4,6 @@ import (
 	"refina-transaction/config/miniofs"
 	"refina-transaction/interface/grpc/client"
 	"refina-transaction/interface/http/handler"
-	"refina-transaction/interface/http/middleware"
 	"refina-transaction/internal/repository"
 	"refina-transaction/internal/service"
 
@@ -24,7 +23,6 @@ func TransactionRoutes(version *gin.Engine, db *gorm.DB, minio *miniofs.MinIOMan
 	Transaction_handler := handler.NewTransactionHandler(Transaction_serv)
 
 	transaction := version.Group("/transactions")
-	transaction.Use(middleware.AuthMiddleware())
 
 	transaction.GET("", Transaction_handler.GetAllTransactions)
 	transaction.GET(":id", Transaction_handler.GetTransactionByID)
