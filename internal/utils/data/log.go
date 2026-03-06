@@ -2,17 +2,18 @@ package data
 
 // Service field logging constants
 const (
-	MainService        = "main"
-	EnvService         = "env"
-	DatabaseService    = "database"
-	MinioService       = "minio"
-	RabbitmqService    = "rabbitmq"
-	GRPCClientService  = "grpc_client"
-	GRPCServerService  = "grpc_server"
-	HTTPServerService  = "http_server"
-	OutboxService      = "outbox"
-	TransactionService = "transaction"
-	CategoryService    = "category"
+	MainService               = "main"
+	EnvService                = "env"
+	DatabaseService           = "database"
+	MinioService              = "minio"
+	RabbitmqService           = "rabbitmq"
+	GRPCClientService         = "grpc_client"
+	GRPCServerService         = "grpc_server"
+	HTTPServerService         = "http_server"
+	OutboxService             = "outbox"
+	TransactionService        = "transaction"
+	CategoryService           = "category"
+	InvestmentConsumerService = "investment_consumer"
 )
 
 // Message field logging constants
@@ -111,4 +112,14 @@ const (
 	LogUpdateCategoryBadRequest  = "update_category_bad_request"
 	LogUpdateCategoryFailed      = "update_category_failed"
 	LogDeleteCategoryFailed      = "delete_category_failed"
+
+	// --- investment event consumer ---
+	LogInvestmentConsumerStarted        = "investment_consumer_started"
+	LogInvestmentConsumerStopped        = "investment_consumer_stopped"
+	LogInvestmentConsumerFailed         = "investment_consumer_failed"
+	LogInvestmentEventHandleFailed      = "investment_event_handle_failed"
+	LogInvestmentEventUnknown           = "investment_event_unknown"
+	LogInvestmentEventSkipped           = "investment_event_skipped"
+	LogInvestmentBuyTransactionCreated  = "investment_buy_transaction_created"
+	LogInvestmentSellTransactionCreated = "investment_sell_transaction_created"
 )

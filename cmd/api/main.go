@@ -86,6 +86,18 @@ func main() {
 	}
 	logger.Info(data.LogGRPCClientSetupSuccess, map[string]any{"service": data.GRPCClientService, "duration": utils.Ms(time.Since(startTime))})
 
+	// Setup Investment Event Consumer
+	txManager := repository.NewTxManager(dbInstance.GetDB())
+	transactionRepo := repository.NewTransactionRepository(dbInstance.GetDB())
+	walletClient := client.NewWalletClient(grpcManager.GetWalletClient())
+	categoryRepo := repository.NewCategoryRepository(dbInstance.GetDB())
+	attachmentRepo := repository.NewAttachmentsRepository(dbInstance.GetDB())
+	outboxRepoForConsumer := repository.NewOutboxRepository(dbInstance.GetDB())
+	transactionService := service.NewTransactionService(txManager, transactionRepo, walletClient, categoryRepo, attachmentRepo, outboxRepoForConsumer, minioInstance)
+
+	investmentConsumer := queue.NewInvestmentEventConsumer(queueInstance, transactionService)
+	go investmentConsumer.Start(ctx)
+
 	// Set up the HTTP server
 	startTime = time.Now()
 	httpServer := router.SetupHTTPServer(dbInstance, minioInstance, queueInstance)

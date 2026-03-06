@@ -15,6 +15,14 @@ var (
 	OUTBOX_EVENT_TRANSACTION_UPDATED = "transaction.updated"
 	OUTBOX_EVENT_TRANSACTION_DELETED = "transaction.deleted"
 
+	// Investment event routing keys (consumed from investment-service)
+	EVENT_INVESTMENT_BUY  = "investment.buy"
+	EVENT_INVESTMENT_SELL = "investment.sell"
+
+	// Investment transaction category IDs
+	CATEGORY_ID_INVESTMENT_BUY  = "66239d17-3320-4c98-9b8c-fb8d84827085"
+	CATEGORY_ID_INVESTMENT_SELL = "635fdfd1-31f4-472c-8d52-e59a66c31351"
+
 	// REQUEST_ID_HEADER is the standard header name used to propagate request IDs.
 	REQUEST_ID_HEADER = "X-Request-ID"
 	// REQUEST_ID_LOCAL_KEY is the key used to store the request ID in Gin's context locals.
