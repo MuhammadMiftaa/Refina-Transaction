@@ -16,7 +16,8 @@ import (
 	"refina-transaction/interface/grpc/client"
 	grpcserver "refina-transaction/interface/grpc/server"
 	"refina-transaction/interface/http/router"
-	"refina-transaction/interface/queue"
+	queueclient "refina-transaction/interface/queue/client"
+	"refina-transaction/interface/queue/setup"
 	"refina-transaction/internal/repository"
 	"refina-transaction/internal/service"
 	"refina-transaction/internal/utils"
@@ -58,7 +59,7 @@ func main() {
 
 	// Setup RabbitMQ Connection
 	startTime = time.Now()
-	queueInstance := queue.GetInstance(env.Cfg.RabbitMQ)
+	queueInstance := queueclient.GetInstance(env.Cfg.RabbitMQ)
 	logger.Info(data.LogRabbitmqSetupSuccess, map[string]any{"service": data.RabbitmqService, "duration": utils.Ms(time.Since(startTime))})
 
 	// Create context for graceful shutdown
@@ -86,17 +87,10 @@ func main() {
 	}
 	logger.Info(data.LogGRPCClientSetupSuccess, map[string]any{"service": data.GRPCClientService, "duration": utils.Ms(time.Since(startTime))})
 
-	// Setup Investment Event Consumer
-	txManager := repository.NewTxManager(dbInstance.GetDB())
-	transactionRepo := repository.NewTransactionRepository(dbInstance.GetDB())
-	walletClient := client.NewWalletClient(grpcManager.GetWalletClient())
-	categoryRepo := repository.NewCategoryRepository(dbInstance.GetDB())
-	attachmentRepo := repository.NewAttachmentsRepository(dbInstance.GetDB())
-	outboxRepoForConsumer := repository.NewOutboxRepository(dbInstance.GetDB())
-	transactionService := service.NewTransactionService(txManager, transactionRepo, walletClient, categoryRepo, attachmentRepo, outboxRepoForConsumer, minioInstance)
-
-	investmentConsumer := queue.NewInvestmentEventConsumer(queueInstance, transactionService)
-	go investmentConsumer.Start(ctx)
+	// Setup Queue Consumers
+	startTime = time.Now()
+	setup.SetupQueueConsumers(ctx, dbInstance, minioInstance, queueInstance)
+	logger.Info(data.LogInvestmentConsumerStarted, map[string]any{"service": data.InvestmentConsumerService, "duration": utils.Ms(time.Since(startTime))})
 
 	// Set up the HTTP server
 	startTime = time.Now()

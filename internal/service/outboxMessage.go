@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"refina-transaction/config/log"
-	"refina-transaction/interface/queue"
+	queueclient "refina-transaction/interface/queue/client"
 	"refina-transaction/internal/repository"
 	"refina-transaction/internal/types/model"
 	"refina-transaction/internal/utils/data"
@@ -16,14 +16,14 @@ import (
 
 type OutboxPublisher struct {
 	outboxRepo repository.OutboxRepository
-	queue      queue.RabbitMQClient
+	queue      queueclient.RabbitMQClient
 	interval   time.Duration
 	batchSize  int
 }
 
 func NewOutboxPublisher(
 	outboxRepo repository.OutboxRepository,
-	rabbitMQ queue.RabbitMQClient,
+	rabbitMQ queueclient.RabbitMQClient,
 ) *OutboxPublisher {
 	return &OutboxPublisher{
 		outboxRepo: outboxRepo,

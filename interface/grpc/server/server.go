@@ -8,7 +8,7 @@ import (
 	"refina-transaction/config/miniofs"
 	grpcclient "refina-transaction/interface/grpc/client"
 	"refina-transaction/interface/grpc/interceptor"
-	"refina-transaction/interface/queue"
+	queueclient "refina-transaction/interface/queue/client"
 	"refina-transaction/internal/repository"
 	"refina-transaction/internal/service"
 
@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-func SetupGRPCServer(dbInstance db.DatabaseClient, minioInstance *miniofs.MinIOManager, queueInstance queue.RabbitMQClient) (*grpc.Server, *net.Listener, error) {
+func SetupGRPCServer(dbInstance db.DatabaseClient, minioInstance *miniofs.MinIOManager, queueInstance queueclient.RabbitMQClient) (*grpc.Server, *net.Listener, error) {
 	lis, err := net.Listen("tcp", ":"+env.Cfg.Server.GRPCPort)
 	if err != nil {
 		return nil, nil, err

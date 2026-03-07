@@ -1,4 +1,4 @@
-package queue
+package client
 
 import (
 	"context"
@@ -119,7 +119,7 @@ func (r *rabbitMQClient) Publish(ctx context.Context, routingKey string, body []
 		Body:        body,
 	}
 
-	if err := channel.PublishWithContext(ctx, "refina", routingKey, false, false, message); err != nil {
+	if err := channel.PublishWithContext(ctx, data.OUTBOX_PUBLISH_EXCHANGE, routingKey, false, false, message); err != nil {
 		return fmt.Errorf("failed to publish message: %w", err)
 	}
 

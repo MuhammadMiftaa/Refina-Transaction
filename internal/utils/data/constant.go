@@ -15,6 +15,7 @@ var (
 	OUTBOX_EVENT_TRANSACTION_UPDATED = "transaction.updated"
 	OUTBOX_EVENT_TRANSACTION_DELETED = "transaction.deleted"
 
+	EVENT_INVESTMENT_QUEUE = "refina-investments"
 	// Investment event routing keys (consumed from investment-service)
 	EVENT_INVESTMENT_BUY  = "investment.buy"
 	EVENT_INVESTMENT_SELL = "investment.sell"

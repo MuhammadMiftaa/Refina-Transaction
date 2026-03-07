@@ -1,12 +1,14 @@
-package queue
+package consumer
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"refina-transaction/config/log"
+	"refina-transaction/interface/queue/client"
 	"refina-transaction/internal/types/dto"
 	"refina-transaction/internal/utils/data"
 
@@ -19,42 +21,15 @@ type TransactionCreator interface {
 }
 
 type InvestmentEventConsumer struct {
-	rabbitMQ           RabbitMQClient
+	rabbitMQ           client.RabbitMQClient
 	transactionCreator TransactionCreator
 }
 
-func NewInvestmentEventConsumer(rmq RabbitMQClient, txnCreator TransactionCreator) *InvestmentEventConsumer {
+func NewInvestmentEventConsumer(rmq client.RabbitMQClient, txnCreator TransactionCreator) *InvestmentEventConsumer {
 	return &InvestmentEventConsumer{
 		rabbitMQ:           rmq,
 		transactionCreator: txnCreator,
 	}
-}
-
-// investmentBuyEvent represents the payload published by investment-service on investment.buy
-type investmentBuyEvent struct {
-	ID               string  `json:"id"`
-	UserID           string  `json:"userId"`
-	Code             string  `json:"code"`
-	Quantity         float64 `json:"quantity"`
-	InitialValuation float64 `json:"initialValuation"`
-	Amount           float64 `json:"amount"`
-	Date             string  `json:"date"`
-	Description      string  `json:"description"`
-	WalletID         string  `json:"walletId"`
-}
-
-// investmentSellEvent represents a single sold record from investment-service on investment.sell
-type investmentSellEvent struct {
-	ID           string  `json:"id"`
-	UserID       string  `json:"userId"`
-	InvestmentID string  `json:"investmentId"`
-	Quantity     float64 `json:"quantity"`
-	SellPrice    float64 `json:"sellPrice"`
-	Amount       float64 `json:"amount"`
-	Date         string  `json:"date"`
-	Description  string  `json:"description"`
-	Deficit      float64 `json:"deficit"`
-	WalletID     string  `json:"walletId"`
 }
 
 func (c *InvestmentEventConsumer) Start(ctx context.Context) {
@@ -89,11 +64,11 @@ func (c *InvestmentEventConsumer) consume(ctx context.Context) error {
 
 	// Declare the queue for investment events
 	queue, err := channel.QueueDeclare(
-		"transaction.investment.events", // queue name
-		true,                            // durable
-		false,                           // auto-delete
-		false,                           // exclusive
-		false,                           // no-wait
+		data.EVENT_INVESTMENT_QUEUE, // queue name
+		true,                        // durable
+		false,                       // auto-delete
+		false,                       // exclusive
+		false,                       // no-wait
 		nil,
 	)
 	if err != nil {
@@ -165,7 +140,7 @@ func (c *InvestmentEventConsumer) handleMessage(ctx context.Context, msg amqp091
 }
 
 func (c *InvestmentEventConsumer) handleInvestmentBuy(ctx context.Context, body []byte) error {
-	var event investmentBuyEvent
+	var event dto.InvestmentBuyEvent
 	if err := json.Unmarshal(body, &event); err != nil {
 		return fmt.Errorf("unmarshal investment buy event: %w", err)
 	}
@@ -188,13 +163,28 @@ func (c *InvestmentEventConsumer) handleInvestmentBuy(ctx context.Context, body 
 		}
 	}
 
-	assetCode := event.Code
-	description := fmt.Sprintf("Pembelian investasi %s sebanyak %.4f", assetCode, event.Quantity)
+	investmentDate = time.Date(
+		investmentDate.Year(),
+		investmentDate.Month(),
+		investmentDate.Day(),
+		time.Now().Hour(),
+		time.Now().Minute(),
+		time.Now().Second(),
+		time.Now().Nanosecond(),
+		time.Now().Location(),
+	)
 
+	assetCode := event.Code
+	description := fmt.Sprintf("Pembelian investasi %s sebanyak %s", assetCode, event.Quantity)
+
+	amountFloat64, err := strconv.ParseFloat(event.Amount, 64)
+	if err != nil {
+		return fmt.Errorf("parse amount: %w", err)
+	}
 	txnReq := dto.TransactionsRequest{
 		WalletID:           event.WalletID,
 		CategoryID:         data.CATEGORY_ID_INVESTMENT_BUY,
-		Amount:             event.Amount,
+		Amount:             amountFloat64,
 		Date:               investmentDate,
 		Description:        description,
 		Attachments:        []dto.UpdateAttachmentsRequest{},
@@ -217,7 +207,7 @@ func (c *InvestmentEventConsumer) handleInvestmentBuy(ctx context.Context, body 
 }
 
 func (c *InvestmentEventConsumer) handleInvestmentSell(ctx context.Context, body []byte) error {
-	var events []investmentSellEvent
+	var events []dto.InvestmentSellEvent
 	if err := json.Unmarshal(body, &events); err != nil {
 		return fmt.Errorf("unmarshal investment sell events: %w", err)
 	}
@@ -245,12 +235,27 @@ func (c *InvestmentEventConsumer) handleInvestmentSell(ctx context.Context, body
 			}
 		}
 
-		description := fmt.Sprintf("Penjualan investasi sebanyak %.4f dengan harga jual %.0f/unit", event.Quantity, event.SellPrice)
+		investmentDate = time.Date(
+			investmentDate.Year(),
+			investmentDate.Month(),
+			investmentDate.Day(),
+			time.Now().Hour(),
+			time.Now().Minute(),
+			time.Now().Second(),
+			time.Now().Nanosecond(),
+			time.Now().Location(),
+		)
 
+		description := fmt.Sprintf("Penjualan investasi sebanyak %s dengan harga jual %s/unit", event.Quantity, event.SellPrice)
+
+		amountFloat64, err := strconv.ParseFloat(event.Amount, 64)
+		if err != nil {
+			return fmt.Errorf("parse amount: %w", err)
+		}
 		txnReq := dto.TransactionsRequest{
 			WalletID:           event.WalletID,
 			CategoryID:         data.CATEGORY_ID_INVESTMENT_SELL,
-			Amount:             event.Amount,
+			Amount:             amountFloat64,
 			Date:               investmentDate,
 			Description:        description,
 			Attachments:        []dto.UpdateAttachmentsRequest{},
