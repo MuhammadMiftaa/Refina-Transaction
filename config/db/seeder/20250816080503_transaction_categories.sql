@@ -2,6 +2,9 @@
 -- +goose StatementBegin
 INSERT INTO categories (id, parent_id, name, type) VALUES
 ('00000000-0000-0000-0000-000000000000', NULL,                                      'Deposit Awal',                     'income'),
+('00000000-0000-0000-0000-000000000010', NULL,                                      'Pindah Dana',                      'fund_transfer'),
+('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000010',    'Cash In',                          'fund_transfer'),
+('00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000010',    'Cash Out',                         'fund_transfer'),
 ('86453a2c-b4ca-42e9-b4d0-dcc718ede024', NULL,                                      'Transportasi & Kendaraan',         'expense'),
 ('78662c66-1299-4486-902c-7ea8543aa6fc', '86453a2c-b4ca-42e9-b4d0-dcc718ede024',    'Cicilan Kendaraan',                'expense'),
 ('0c759c4a-41d8-4f4c-9e6c-7ddebba28420', NULL,                                      'Kebutuhan Pokok',                  'expense'),

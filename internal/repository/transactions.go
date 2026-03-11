@@ -65,7 +65,7 @@ func (transaction_repo *transactionsRepository) GetAllTransactions(ctx context.C
 	}
 
 	var transactions []model.Transactions
-	err = db.Preload("Category").Order("transaction_date DESC").Find(&transactions).Error
+	err = db.Joins("Category").Order("transaction_date DESC").Find(&transactions).Error
 	if err != nil {
 		return nil, errors.New("user transactions not found")
 	}
@@ -79,7 +79,7 @@ func (trasaction_repo *transactionsRepository) GetTransactionByID(ctx context.Co
 	}
 
 	var transaction model.Transactions
-	err = db.Preload("Category").Where("id = ?", id).First(&transaction).Error
+	err = db.Joins("Category").Where("\"transactions\".id = ?", id).First(&transaction).Error
 	if err != nil {
 		return model.Transactions{}, errors.New("transaction not found")
 	}
@@ -94,7 +94,7 @@ func (transaction_repo *transactionsRepository) GetTransactionsByWalletIDs(ctx c
 	}
 
 	var transactions []model.Transactions
-	err = db.Preload("Category").Preload("Attachments").Where("wallet_id IN ?", ids).Order("transaction_date DESC").Find(&transactions).Error
+	err = db.Joins("Category").Preload("Attachments").Where("\"transactions\".wallet_id IN ?", ids).Order("transaction_date DESC").Find(&transactions).Error
 	if err != nil {
 		return nil, errors.New("user transactions not found")
 	}
@@ -107,7 +107,7 @@ func (transaction_repo *transactionsRepository) CreateTransaction(ctx context.Co
 		return model.Transactions{}, err
 	}
 
-	if err := db.Create(&transaction).Error; err != nil {
+	if err := db.Omit("Category", "Attachments").Create(&transaction).Error; err != nil {
 		return model.Transactions{}, err
 	}
 
@@ -146,32 +146,32 @@ func (transaction_repo *transactionsRepository) GetTransactionsByCursor(ctx cont
 	}
 
 	// ── Base query: wallet IDs ──
-	base := db.Model(&model.Transactions{}).Where("wallet_id IN ?", q.WalletIDs)
+	base := db.Model(&model.Transactions{}).Where("transactions.wallet_id IN ?", q.WalletIDs)
 
 	// ── Filters ──
 	if q.WalletID != "" {
-		base = base.Where("wallet_id = ?", q.WalletID)
+		base = base.Where("transactions.wallet_id = ?", q.WalletID)
 	}
 	if q.CategoryID != "" {
-		base = base.Where("category_id = ?", q.CategoryID)
+		base = base.Where("transactions.category_id = ?", q.CategoryID)
 	}
 	if q.CategoryType != "" {
-		base = base.Joins("JOIN categories ON categories.id = transactions.category_id").
-			Where("categories.type = ?", q.CategoryType)
+		base = base.Joins("JOIN categories AS cat_filter ON cat_filter.id = transactions.category_id AND cat_filter.deleted_at IS NULL").
+			Where("cat_filter.type = ?", q.CategoryType)
 	}
 	if q.DateFrom != "" {
 		if t, err := time.Parse(time.RFC3339, q.DateFrom); err == nil {
-			base = base.Where("transaction_date >= ?", t)
+			base = base.Where("transactions.transaction_date >= ?", t)
 		}
 	}
 	if q.DateTo != "" {
 		if t, err := time.Parse(time.RFC3339, q.DateTo); err == nil {
-			base = base.Where("transaction_date <= ?", t)
+			base = base.Where("transactions.transaction_date <= ?", t)
 		}
 	}
 	if q.Search != "" {
 		like := "%" + strings.ToLower(q.Search) + "%"
-		base = base.Where("LOWER(description) LIKE ?", like)
+		base = base.Where("LOWER(transactions.description) LIKE ?", like)
 	}
 
 	// ── Count total (before cursor) ──
@@ -203,14 +203,14 @@ func (transaction_repo *transactionsRepository) GetTransactionsByCursor(ctx cont
 		case "amount":
 			// (amount < cursorAmount) OR (amount = cursorAmount AND id < cursorID) for desc
 			base = base.Where(
-				fmt.Sprintf("(amount %s ?) OR (amount = ? AND id %s ?)", op, op),
+				fmt.Sprintf("(transactions.amount %s ?) OR (transactions.amount = ? AND transactions.id %s ?)", op, op),
 				q.CursorAmount, q.CursorAmount, q.Cursor,
 			)
 		default: // transaction_date
 			if q.CursorDate != "" {
 				if cursorTime, err := time.Parse(time.RFC3339, q.CursorDate); err == nil {
 					base = base.Where(
-						fmt.Sprintf("(transaction_date %s ?) OR (transaction_date = ? AND id %s ?)", op, op),
+						fmt.Sprintf("(transactions.transaction_date %s ?) OR (transactions.transaction_date = ? AND transactions.id %s ?)", op, op),
 						cursorTime, cursorTime, q.Cursor,
 					)
 				}
@@ -224,10 +224,10 @@ func (transaction_repo *transactionsRepository) GetTransactionsByCursor(ctx cont
 		pageSize = 9999
 	}
 
-	orderClause := fmt.Sprintf("%s %s, id %s", sortBy, sortOrder, sortOrder)
+	orderClause := fmt.Sprintf("transactions.%s %s, transactions.id %s", sortBy, sortOrder, sortOrder)
 
 	var transactions []model.Transactions
-	err = base.Preload("Category").Preload("Attachments").
+	err = base.Joins("Category").Preload("Attachments").
 		Order(orderClause).
 		Limit(pageSize + 1). // fetch one extra to determine has_next
 		Find(&transactions).Error
