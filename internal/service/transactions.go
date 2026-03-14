@@ -130,17 +130,17 @@ func (transaction_serv *transactionsService) GetTransactionsByCursor(ctx context
 }
 
 func (transaction_serv *transactionsService) CreateTransaction(ctx context.Context, transaction dto.TransactionsRequest) (dto.TransactionsResponse, error) {
+	category, err := transaction_serv.categoryRepo.GetCategoryByID(ctx, nil, transaction.CategoryID)
+	if err != nil {
+		return dto.TransactionsResponse{}, fmt.Errorf("category not found [id=%s]: %w", transaction.CategoryID, err)
+	}
+
 	tx, err := transaction_serv.txManager.Begin(ctx)
 	if err != nil {
 		return dto.TransactionsResponse{}, fmt.Errorf("create transaction: begin transaction: %w", err)
 	}
 
 	defer tx.Rollback()
-
-	category, err := transaction_serv.categoryRepo.GetCategoryByID(ctx, tx, transaction.CategoryID)
-	if err != nil {
-		return dto.TransactionsResponse{}, fmt.Errorf("category not found [id=%s]: %w", transaction.CategoryID, err)
-	}
 
 	// Parse ID from JSON to valid UUID
 	CategoryID, err := helper.ParseUUID(transaction.CategoryID)
@@ -441,15 +441,15 @@ func (transaction_serv *transactionsService) UpdateTransaction(ctx context.Conte
 
 	// ? If category ID is different, update category
 	if transaction.CategoryID != transactionExist.CategoryID.String() {
-		CategoryID, err := helper.ParseUUID(transaction.CategoryID)
-		if err != nil {
-			return dto.TransactionsResponse{}, fmt.Errorf("invalid category id [id=%s]: %w", transaction.CategoryID, err)
-		}
-
 		// * Check if category exist
 		_, err = transaction_serv.categoryRepo.GetCategoryByID(ctx, tx, transaction.CategoryID)
 		if err != nil {
 			return dto.TransactionsResponse{}, fmt.Errorf("category not found [id=%s]: %w", transaction.CategoryID, err)
+		}
+
+		CategoryID, err := helper.ParseUUID(transaction.CategoryID)
+		if err != nil {
+			return dto.TransactionsResponse{}, fmt.Errorf("invalid category id [id=%s]: %w", transaction.CategoryID, err)
 		}
 
 		transactionExist.CategoryID = CategoryID
